@@ -94,6 +94,31 @@ real: `pendiente` (esperando al despachador), `enviado`, `fallido` o `no_configu
 hoy. En la fase 2 el cálculo se muda al backend, con la API key de OpenAI en el `.env`
 del servidor — nunca en el front, donde quedaría expuesta en el bundle.
 
+## Recuperar contraseña (sin correo)
+
+`POST /auth/forgot-password` es público y responde **204 exista o no la cuenta**:
+contestar distinto permitiría averiguar qué correos están registrados. Si existe,
+registra un `PasswordResetRequest` y deja un aviso en la campana de cada
+administrador activo. Si ya había un pedido pendiente, solo actualiza la nota en
+lugar de acumular.
+
+El administrador lo atiende desde el módulo de usuarios:
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /reset-requests` | Pedidos pendientes, con la nota de la persona |
+| `POST /users/:id/reset-password` | Asigna la clave temporal **y cierra el pedido** |
+| `PATCH /reset-requests/:id/dismiss` | Descarta un pedido sin tocar la contraseña |
+
+Restablecer marca `debeCambiarPassword`, borra el refresh token (se cierran las
+sesiones abiertas) y deja constancia de quién atendió y cuándo. La persona entra
+con la clave temporal y el `PasswordChangeGuard` no la deja operar hasta
+cambiarla.
+
+**La API nunca emite contraseñas.** La clave temporal la escribe el
+administrador, que es quien se la va a comunicar; no viaja en ninguna respuesta
+ni se genera en el servidor.
+
 ## Correo corporativo (Microsoft Graph)
 
 Los avisos de asignación salen por correo desde un buzón del tenant. Hace falta
@@ -118,5 +143,6 @@ WhatsApp y Teams no están habilitados: sus envíos quedan marcados
 
 | Rama | Qué cambió |
 |---|---|
+| `main` | Recuperación de contraseña mediada por un administrador: `POST /auth/forgot-password` público y sin revelar qué correos existen, solicitudes visibles en el módulo de usuarios, y el restablecimiento que cierra el pedido. Cinco tests del flujo. |
 | `main` | MVP: clave temporal bloqueada en el servidor (`PasswordChangeGuard`), maquina de estados de asignaciones con transiciones validas, y 15 tests unitarios de estados y guards. |
 | `main` | Fase 1: scaffold NestJS 11 + Prisma, esquema completo, auth JWT + argon2, módulos users / groups / projects / assignments / notifications / health, guards de permisos en servidor, seed idempotente. Envío de avisos por correo con Microsoft Graph: `MailService` con credenciales de aplicación, plantilla con la marca y despachador con cron, reintentos con espera creciente y estado real por canal. |

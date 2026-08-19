@@ -20,13 +20,17 @@ import { QueryUsersDto } from './dto/query-users.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResetRequestsService } from '../password-resets/reset-requests.service';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller()
 export class UsersController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly resets: ResetRequestsService,
+  ) {}
 
   @Get('permissions')
   @ApiOperation({ summary: 'Catálogo de permisos de la plataforma.' })
@@ -84,15 +88,35 @@ export class UsersController {
     return this.users.setActivo(id, false, actual.id);
   }
 
+  @Get('reset-requests')
+  @RequirePermission('users.manage')
+  @ApiOperation({ summary: 'Quiénes pidieron que les restablezcan la contraseña.' })
+  solicitudes() {
+    return this.resets.pendientes();
+  }
+
+  @Patch('reset-requests/:id/dismiss')
+  @RequirePermission('users.manage')
+  @ApiOperation({ summary: 'Descarta un pedido sin tocar la contraseña.' })
+  descartarSolicitud(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actual: RequestUser) {
+    return this.resets.descartar(id, actual.id);
+  }
+
   @Post('users/:id/reset-password')
   @RequirePermission('users.manage')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Asigna una contraseña temporal. La persona debe cambiarla al entrar.' })
+  @ApiOperation({
+    summary: 'Asigna una contraseña temporal. La persona debe cambiarla al entrar.',
+    description:
+      'Cierra tambien el pedido pendiente de esa persona, si lo habia: atender el pedido y restablecer son el mismo acto.',
+  })
   async resetPassword(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResetPasswordDto,
+    @CurrentUser() actual: RequestUser,
   ): Promise<void> {
     await this.users.resetPassword(id, dto.nueva);
+    await this.resets.cerrarDe(id, actual.id);
   }
 
   @Patch('me/profile')

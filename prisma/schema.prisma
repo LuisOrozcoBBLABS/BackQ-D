@@ -57,6 +57,13 @@ enum EnvioEstado {
   no_configurado
 }
 
+/// Estado de una solicitud de restablecimiento de contrasena.
+enum EstadoSolicitud {
+  pendiente
+  atendida
+  descartada
+}
+
 model Permission {
   id    String @id // ej. 'users.manage'
   label String
@@ -132,6 +139,8 @@ model User {
   ultimoLoginAt       DateTime?
 
   permisosExtra UserPermission[]
+  solicitudes   PasswordResetRequest[] @relation("SolicitanteReset")
+  resetsAtendidos PasswordResetRequest[] @relation("AtendioReset")
   proyectos     Project[]        @relation("ProyectoAutor")
   asignaciones  Assignment[]     @relation("AsignadoA")
   asignadasPor  Assignment[]     @relation("AsignadoPor")
@@ -281,4 +290,27 @@ model NotificationEnvio {
 
   @@index([notificationId])
   @@map("notification_envios")
+}
+
+/// Pedido de restablecimiento de contrasena. No genera tokens por correo: la
+/// atiende un administrador desde el modulo de usuarios, que asigna una clave
+/// temporal. Asi el flujo funciona incluso sin correo configurado.
+model PasswordResetRequest {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("SolicitanteReset", fields: [userId], references: [id], onDelete: Cascade)
+
+  estado EstadoSolicitud @default(pendiente)
+  /// Lo que escribio la persona al pedirlo (opcional), para dar contexto al admin.
+  nota   String?
+
+  atendidaPorId String?
+  atendidaPor   User?   @relation("AtendioReset", fields: [atendidaPorId], references: [id], onDelete: SetNull)
+  atendidaAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([estado, createdAt])
+  @@index([userId])
+  @@map("password_reset_requests")
 }
