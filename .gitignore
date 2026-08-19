@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Secretos: nunca se comitean
+.env
+.env.local
+.env.*.local
+
+# Prisma
+prisma/*.db
+
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

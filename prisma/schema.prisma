@@ -1,0 +1,284 @@
+// Esquema de la Plataforma I+D — Blackbird Labs (QR&D)
+// Espeja los modelos que el front ya usaba en memoria (core/models.ts),
+// más lo que la versión simulada no tenía: credenciales, auditoría y borrado suave.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleId {
+  admin
+  colaborador
+}
+
+enum Genero {
+  hombre
+  mujer
+  prefiero_no_decirlo
+}
+
+enum ProjectStatus {
+  idea
+  evaluacion
+  aprobado
+  descartado
+}
+
+enum Prioridad {
+  urgente
+  alta
+  media
+  baja
+}
+
+enum AssignmentStatus {
+  pendiente
+  aceptada
+  en_curso
+  completada
+}
+
+enum Canal {
+  correo
+  whatsapp
+  teams
+}
+
+/// Estado real del envío. La versión simulada solo sabía decir "Enviado (simulado)".
+enum EnvioEstado {
+  pendiente
+  enviado
+  fallido
+  no_configurado
+}
+
+model Permission {
+  id    String @id // ej. 'users.manage'
+  label String
+  desc  String
+  grupo String // agrupador para la UI
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id    RoleId @id
+  label String
+
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       RoleId
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Permiso extra concedido a una persona por encima de su rol.
+model UserPermission {
+  userId       String
+  permissionId String
+  concedidoAt  DateTime @default(now())
+  concedidoPor String?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model User {
+  id           String  @id @default(uuid())
+  nombre       String
+  email        String  @unique
+  cargo        String  @default("")
+  passwordHash String
+
+  rolId RoleId @default(colaborador)
+  rol   Role   @relation(fields: [rolId], references: [id])
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  activo             Boolean   @default(true)
+  avatarUrl          String?
+  linkedin           String?
+  telefono           String?
+  genero             Genero?
+  fechaNacimiento    DateTime? @db.Date
+  onboardingCompleto Boolean   @default(false)
+
+  /// Fuerza el cambio de clave en el primer ingreso (usuarios creados por el admin).
+  debeCambiarPassword Boolean   @default(true)
+  /// Hash del refresh token vigente. Null = sesión cerrada.
+  refreshTokenHash    String?
+  ultimoLoginAt       DateTime?
+
+  permisosExtra UserPermission[]
+  proyectos     Project[]        @relation("ProyectoAutor")
+  asignaciones  Assignment[]     @relation("AsignadoA")
+  asignadasPor  Assignment[]     @relation("AsignadoPor")
+  notificaciones Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+  @@map("users")
+}
+
+model Group {
+  id     String  @id @default(uuid())
+  nombre String  @unique
+  lema   String  @default("")
+  activo Boolean @default(true)
+
+  miembros  User[]
+  proyectos Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("groups")
+}
+
+model Project {
+  id       String @id @default(uuid())
+  nombre   String
+  sector   String
+  problema String @default("")
+  dolores  String @default("")
+  solucion String @default("")
+  plusIA   String @default("")
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  autorId String
+  autor   User   @relation("ProyectoAutor", fields: [autorId], references: [id])
+
+  estado ProjectStatus @default(idea)
+
+  /// Resultados del motor de IA (fase 2). Hoy se guardan tal como los manda el front.
+  enriquecido Boolean @default(false)
+  score       Int?
+  enrichment  Json?
+
+  /// Borrado suave: nada se pierde, se archiva.
+  archivado   Boolean   @default(false)
+  archivadoAt DateTime?
+
+  similares   ProjectSimilar[]
+  assignments Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+  @@index([autorId])
+  @@index([estado])
+  @@map("projects")
+}
+
+model ProjectSimilar {
+  id        String @id @default(uuid())
+  projectId String
+  name      String
+  url       String
+  orden     Int    @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_similars")
+}
+
+model Assignment {
+  id String @id @default(uuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  asignadoAId String
+  asignadoA   User   @relation("AsignadoA", fields: [asignadoAId], references: [id])
+
+  asignadoPorId String
+  asignadoPor   User   @relation("AsignadoPor", fields: [asignadoPorId], references: [id])
+
+  prioridad   Prioridad        @default(media)
+  nota        String           @default("")
+  fechaLimite DateTime?        @db.Date
+  estado      AssignmentStatus @default(pendiente)
+  canales     Canal[]
+
+  notificaciones Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([asignadoAId])
+  @@index([projectId])
+  @@map("assignments")
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  titulo  String
+  detalle String
+  leida   Boolean @default(false)
+
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  projectId    String?
+
+  envios NotificationEnvio[]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, leida])
+  @@map("notifications")
+}
+
+/// Un registro por canal. Deja de mentir: guarda el estado real del envío.
+model NotificationEnvio {
+  id             String @id @default(uuid())
+  notificationId String
+
+  canal   Canal
+  destino String
+  estado  EnvioEstado @default(pendiente)
+  detalle String?
+  intento Int         @default(0)
+
+  enviadoAt DateTime?
+  /// Espera creciente entre reintentos: el despachador ignora los envios cuyo
+  /// proximo intento todavia no llego.
+  proximoIntentoAt DateTime? @default(now())
+  createdAt DateTime  @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@map("notification_envios")
+}
