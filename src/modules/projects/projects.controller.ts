@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -14,9 +15,27 @@ export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista proyectos según el alcance del usuario.' })
-  findAll(@Query() q: QueryProjectsDto, @CurrentUser() user: RequestUser) {
-    return this.projects.findAll(q, user);
+  @ApiOperation({
+    summary: 'Lista proyectos segun el alcance del usuario.',
+    description: 'Devuelve el total que cumple los filtros en la cabecera X-Total-Count, para que el front pueda paginar.',
+  })
+  async findAll(
+    @Query() q: QueryProjectsDto,
+    @CurrentUser() user: RequestUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const [lista, total] = await Promise.all([
+      this.projects.findAll(q, user),
+      this.projects.contar(q, user),
+    ]);
+    res.setHeader('X-Total-Count', String(total));
+    return lista;
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Cuantos proyectos hay en cada estado, dentro del alcance.' })
+  stats(@Query() q: QueryProjectsDto, @CurrentUser() user: RequestUser) {
+    return this.projects.porEstado(q, user);
   }
 
   @Get(':id')

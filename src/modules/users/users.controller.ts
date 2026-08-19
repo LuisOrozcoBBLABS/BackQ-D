@@ -10,7 +10,9 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -46,9 +48,14 @@ export class UsersController {
 
   @Get('users')
   @RequirePermission('users.manage')
-  @ApiOperation({ summary: 'Lista usuarios con filtros y paginación.' })
-  findAll(@Query() q: QueryUsersDto) {
-    return this.users.findAll(q);
+  @ApiOperation({
+    summary: 'Lista usuarios con filtros y paginacion.',
+    description: 'El total que cumple los filtros viaja en la cabecera X-Total-Count.',
+  })
+  async findAll(@Query() q: QueryUsersDto, @Res({ passthrough: true }) res: Response) {
+    const [lista, total] = await Promise.all([this.users.findAll(q), this.users.contar(q)]);
+    res.setHeader('X-Total-Count', String(total));
+    return lista;
   }
 
   @Get('users/:id')

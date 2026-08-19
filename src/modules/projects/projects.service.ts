@@ -27,8 +27,9 @@ export class ProjectsService {
     };
   }
 
-  findAll(q: QueryProjectsDto, user: RequestUser) {
-    const where: Prisma.ProjectWhereInput = {
+  /** Filtros comunes a la lista y al conteo, para que nunca se desalineen. */
+  private filtros(q: QueryProjectsDto, user: RequestUser): Prisma.ProjectWhereInput {
+    return {
       AND: [
         this.alcance(user),
         q.archivados ? {} : { archivado: false },
@@ -38,17 +39,45 @@ export class ProjectsService {
         q.q
           ? {
               OR: [
-                { nombre: { contains: q.q, mode: 'insensitive' } },
-                { problema: { contains: q.q, mode: 'insensitive' } },
-                { solucion: { contains: q.q, mode: 'insensitive' } },
+                { nombre: { contains: q.q, mode: 'insensitive' as const } },
+                { problema: { contains: q.q, mode: 'insensitive' as const } },
+                { solucion: { contains: q.q, mode: 'insensitive' as const } },
               ],
             }
           : {},
       ],
     };
+  }
 
+  /** Total que cumple los filtros. La paginacion necesita saberlo. */
+  contar(q: QueryProjectsDto, user: RequestUser): Promise<number> {
+    return this.prisma.project.count({ where: this.filtros(q, user) });
+  }
+
+  /**
+   * Cuantos hay en cada estado dentro del alcance de la persona, sin los filtros
+   * de estado: alimenta las pastillas, que tienen que seguir mostrando el total
+   * de cada uno aunque haya un filtro puesto.
+   */
+  async porEstado(q: QueryProjectsDto, user: RequestUser): Promise<Record<string, number>> {
+    const sinEstado: QueryProjectsDto = { ...q, estado: undefined };
+    const grupos = await this.prisma.project.groupBy({
+      by: ['estado'],
+      where: this.filtros(sinEstado, user),
+      _count: { _all: true },
+    });
+
+    const conteo: Record<string, number> = { total: 0 };
+    for (const g of grupos) {
+      conteo[g.estado] = g._count._all;
+      conteo['total'] += g._count._all;
+    }
+    return conteo;
+  }
+
+  findAll(q: QueryProjectsDto, user: RequestUser) {
     return this.prisma.project.findMany({
-      where,
+      where: this.filtros(q, user),
       include: PROJECT_INCLUDE,
       orderBy: { createdAt: 'desc' },
       skip: q.skip ?? 0,

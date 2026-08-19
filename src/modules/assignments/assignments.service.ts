@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssignmentStatus, Canal, EnvioEstado, Prisma } from '@prisma/client';
+import { AssignmentStatus, Canal, EnvioEstado, Prisma, TipoNotificacion } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RequestUser } from '../../common/types/request-user';
 import { CreateAssignmentDto, QueryAssignmentsDto } from './dto/assignment.dto';
@@ -70,6 +70,7 @@ export class AssignmentsService {
         notificaciones: {
           create: {
             userId: dto.asignadoAId,
+            tipo: TipoNotificacion.asignacion,
             titulo: 'Nuevo proyecto asignado',
             detalle: `Se te asignó “${project.nombre}” con prioridad ${dto.prioridad}.`,
             projectId: project.id,

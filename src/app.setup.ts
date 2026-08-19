@@ -14,6 +14,8 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: (process.env.FRONTEND_URL ?? 'http://localhost:4300').split(','),
     credentials: true,
+    // Sin esto el navegador oculta la cabecera y el front no puede paginar.
+    exposedHeaders: ['X-Total-Count'],
   });
 
   app.useGlobalPipes(

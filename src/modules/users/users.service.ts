@@ -12,9 +12,10 @@ import { USER_INCLUDE, UserDto, toUserDto } from './user.mapper';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(q: QueryUsersDto): Promise<UserDto[]> {
+  /** Filtros compartidos por la lista y el conteo. */
+  private filtros(q: QueryUsersDto): Prisma.UserWhereInput {
     const estado = q.estado ?? 'todos';
-    const where: Prisma.UserWhereInput = {
+    return {
       ...(estado === 'todos' ? {} : { activo: estado === 'activos' }),
       ...(q.rol ? { rolId: q.rol } : {}),
       ...(q.q
@@ -26,9 +27,16 @@ export class UsersService {
           }
         : {}),
     };
+  }
 
+  /** Total que cumple los filtros, para paginar. */
+  contar(q: QueryUsersDto): Promise<number> {
+    return this.prisma.user.count({ where: this.filtros(q) });
+  }
+
+  async findAll(q: QueryUsersDto): Promise<UserDto[]> {
     const users = await this.prisma.user.findMany({
-      where,
+      where: this.filtros(q),
       include: USER_INCLUDE,
       orderBy: { nombre: 'asc' },
       skip: q.skip ?? 0,

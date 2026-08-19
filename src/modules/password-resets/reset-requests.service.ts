@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EstadoSolicitud, RoleId } from '@prisma/client';
+import { EstadoSolicitud, RoleId, TipoNotificacion } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
 /**
@@ -63,6 +63,8 @@ export class ResetRequestsService {
       await this.prisma.notification.createMany({
         data: admins.map(a => ({
           userId: a.id,
+          tipo: TipoNotificacion.reset_password,
+          sujetoId: user.id,
           titulo: 'Piden restablecer una contraseña',
           detalle: `${user.nombre} (${user.email}) no puede entrar y pidió una clave nueva.`,
         })),

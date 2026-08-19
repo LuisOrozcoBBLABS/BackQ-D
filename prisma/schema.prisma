@@ -57,6 +57,13 @@ enum EnvioEstado {
   no_configurado
 }
 
+/// Que clase de aviso es. El front decide con esto a donde llevar el clic.
+enum TipoNotificacion {
+  asignacion
+  reset_password
+  general
+}
+
 /// Estado de una solicitud de restablecimiento de contrasena.
 enum EstadoSolicitud {
   pendiente
@@ -256,10 +263,14 @@ model Notification {
   titulo  String
   detalle String
   leida   Boolean @default(false)
+  tipo    TipoNotificacion @default(general)
 
   assignmentId String?
   assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
   projectId    String?
+  /// De quien habla el aviso (no el destinatario). Para un pedido de
+  /// restablecimiento, la persona que lo pidio: asi el clic abre su ficha.
+  sujetoId     String?
 
   envios NotificationEnvio[]
 

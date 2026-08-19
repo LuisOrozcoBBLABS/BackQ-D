@@ -139,10 +139,25 @@ despachador distingue lo transitorio (429, 5xx, red caída) de lo definitivo
 WhatsApp y Teams no están habilitados: sus envíos quedan marcados
 `no_configurado` con el motivo, en lugar de mentir con un "enviado".
 
+## Paginación
+
+Las listas de `/users` y `/projects` devuelven el total que cumple los filtros en
+la cabecera **`X-Total-Count`**, y aceptan `skip` / `take`. El front pide de a 8
+filas y numera las páginas con ese total. Sin el total no se pueden numerar
+páginas, y sin filtrar en el servidor la búsqueda solo miraría la página cargada.
+
+`GET /projects/stats` devuelve cuántos proyectos hay en cada estado dentro del
+alcance de quien pregunta, ignorando el filtro de estado: así las pastillas
+siguen mostrando el total de cada uno aunque haya un filtro puesto.
+
+`exposedHeaders: ['X-Total-Count']` en el CORS es imprescindible: sin eso el
+navegador oculta la cabecera y el front no puede paginar.
+
 ## Registro de cambios
 
 | Rama | Qué cambió |
 |---|---|
+| `main` | Paginación en el servidor: `X-Total-Count` en las listas de usuarios y proyectos, `GET /projects/stats` para los conteos por estado, y `tipo` + `sujetoId` en las notificaciones para que el clic lleve a la acción. |
 | `main` | Recuperación de contraseña mediada por un administrador: `POST /auth/forgot-password` público y sin revelar qué correos existen, solicitudes visibles en el módulo de usuarios, y el restablecimiento que cierra el pedido. Cinco tests del flujo. |
 | `main` | MVP: clave temporal bloqueada en el servidor (`PasswordChangeGuard`), maquina de estados de asignaciones con transiciones validas, y 15 tests unitarios de estados y guards. |
 | `main` | Fase 1: scaffold NestJS 11 + Prisma, esquema completo, auth JWT + argon2, módulos users / groups / projects / assignments / notifications / health, guards de permisos en servidor, seed idempotente. Envío de avisos por correo con Microsoft Graph: `MailService` con credenciales de aplicación, plantilla con la marca y despachador con cron, reintentos con espera creciente y estado real por canal. |
