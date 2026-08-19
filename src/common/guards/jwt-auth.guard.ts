@@ -65,6 +65,7 @@ export class JwtAuthGuard implements CanActivate {
       rol: user.rolId,
       groupId: user.groupId,
       permisos: [...permisos],
+      debeCambiarPassword: user.debeCambiarPassword,
     };
     return true;
   }

@@ -4,7 +4,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { RequestUser } from '../../common/types/request-user';
 import { AssignmentsService } from './assignments.service';
-import { CreateAssignmentDto, QueryAssignmentsDto, UpdateEstadoDto } from './dto/assignment.dto';
+import {
+  CreateAssignmentDto,
+  QueryAssignmentsDto,
+  UpdateEstadoDto,
+  aEstadoPrisma,
+} from './dto/assignment.dto';
 
 @ApiTags('assignments')
 @ApiBearerAuth()
@@ -32,6 +37,6 @@ export class AssignmentsController {
     @Body() dto: UpdateEstadoDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.assignments.updateEstado(id, dto.estado, user);
+    return this.assignments.updateEstado(id, aEstadoPrisma(dto.estado), user);
   }
 }

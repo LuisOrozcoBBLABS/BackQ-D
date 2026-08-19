@@ -7,4 +7,6 @@ export interface RequestUser {
   rol: RoleId;
   groupId: string | null;
   permisos: string[];
+  /** Con clave temporal, la cuenta no puede operar (PasswordChangeGuard). */
+  debeCambiarPassword: boolean;
 }

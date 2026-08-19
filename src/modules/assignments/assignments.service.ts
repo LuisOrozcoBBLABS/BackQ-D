@@ -3,6 +3,7 @@ import { AssignmentStatus, Canal, EnvioEstado, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RequestUser } from '../../common/types/request-user';
 import { CreateAssignmentDto, QueryAssignmentsDto } from './dto/assignment.dto';
+import { motivoTransicionInvalida, transicionValida } from './estado';
 
 const ASSIGNMENT_INCLUDE = {
   project: { select: { id: true, nombre: true, sector: true, estado: true } },
@@ -81,11 +82,18 @@ export class AssignmentsService {
   }
 
   async updateEstado(id: string, estado: AssignmentStatus, user: RequestUser) {
-    const a = await this.prisma.assignment.findUnique({ where: { id }, select: { asignadoAId: true } });
+    const a = await this.prisma.assignment.findUnique({
+      where: { id },
+      select: { asignadoAId: true, estado: true },
+    });
     if (!a) throw new NotFoundException('La asignación no existe.');
 
     const puede = a.asignadoAId === user.id || user.permisos.includes('assignments.create');
     if (!puede) throw new ForbiddenException('Solo la persona asignada puede mover el estado.');
+
+    if (!transicionValida(a.estado, estado)) {
+      throw new BadRequestException(motivoTransicionInvalida(a.estado, estado));
+    }
 
     return this.prisma.assignment.update({
       where: { id },

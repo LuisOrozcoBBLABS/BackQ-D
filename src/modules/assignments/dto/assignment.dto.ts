@@ -48,11 +48,22 @@ export class CreateAssignmentDto {
   canales!: Canal[];
 }
 
+export type EstadoApi = (typeof ESTADOS_API)[number];
+
 export class UpdateEstadoDto {
+  /**
+   * Llega con guion ('en-curso') porque asi lo usa el front. La conversion al
+   * enum de Prisma se hace despues de validar: si se transformaba antes,
+   * @IsIn rechazaba el valor ya convertido.
+   */
   @ApiProperty({ enum: ESTADOS_API })
   @IsIn(ESTADOS_API as unknown as string[])
-  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/-/g, '_') : value))
-  estado!: AssignmentStatus;
+  estado!: EstadoApi;
+}
+
+/** 'en-curso' -> AssignmentStatus.en_curso */
+export function aEstadoPrisma(estado: EstadoApi): AssignmentStatus {
+  return estado.replace(/-/g, '_') as AssignmentStatus;
 }
 
 export class QueryAssignmentsDto {
