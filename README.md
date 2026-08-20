@@ -9,6 +9,12 @@ reales, las credenciales y los permisos.
   capas `controller → service → Prisma`, infraestructura en `src/infra/`.
 - **Front:** [FrontQ-D](https://github.com/LuisOrozcoBBLABS/FrontQ-D) (Angular)
 
+## Prerrequisitos
+
+- Node.js 20+ (recomendado: 22 LTS)
+- npm 11+
+- PostgreSQL 16 corriendo localmente
+
 ## Arrancar en local
 
 1. **Base de datos.** Necesitas PostgreSQL 16 corriendo. Prisma crea la base si no existe.
@@ -25,6 +31,14 @@ reales, las credenciales y los permisos.
    - `SEED_ADMIN_PASSWORD` — la clave del primer administrador (mínimo 10 caracteres).
 
    El `.env` está en `.gitignore` y **nunca** se comitea.
+
+   **Variables opcionales (correo):**
+   - `AZURE_TENANT_ID` — tenant de Microsoft Entra ID
+   - `AZURE_CLIENT_ID` — client ID de la aplicación registrada
+   - `AZURE_CLIENT_SECRET` — secreto de la aplicación
+   - `MAIL_FROM` — buzón remitente (ej: `notificaciones@bblabs.io`)
+
+   Si están vacías, los envíos quedan en `pendiente` y se envían al configurarlas.
 
 3. **Instalar, migrar y sembrar:**
 
@@ -50,6 +64,25 @@ reales, las credenciales y los permisos.
    - Swagger: `http://localhost:3000/api/docs`
    - Health: `http://localhost:3000/api/health`
 
+## Testing
+
+```bash
+npm test
+```
+
+Los tests usan **Jest** y cubren servicios, guards, pipes y la máquina de estados de asignaciones.
+
+## Scripts disponibles
+
+| Comando | Qué hace |
+|---|---|
+| `npm run start:dev` | Levanta la API en watch mode |
+| `npm run build` | Build de producción |
+| `npm test` | Ejecuta los tests con Jest |
+| `npm run migrate:dev` | Crea/aplica migraciones de Prisma |
+| `npm run seed` | Siembra datos iniciales (admin, grupos, permisos) |
+| `npm run prisma:generate` | Regenera el cliente Prisma |
+
 ## Cómo está organizado
 
 ```
@@ -68,6 +101,54 @@ src/
     ├── notifications/   bandeja propia, leídas
     └── health/
 ```
+
+## API Endpoints
+
+### Autenticación
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/auth/login` | Iniciar sesión |
+| POST | `/api/auth/refresh` | Renovar access token |
+| POST | `/api/auth/logout` | Cerrar sesión |
+| GET | `/api/auth/me` | Usuario actual |
+| POST | `/api/auth/forgot-password` | Solicitar recuperación |
+
+### Usuarios
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/users` | Listar (paginado) |
+| POST | `/api/users` | Crear usuario |
+| GET | `/api/users/:id` | Detalle |
+| PATCH | `/api/users/:id` | Actualizar |
+| POST | `/api/users/:id/reset-password` | Asignar clave temporal |
+
+### Proyectos
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/projects` | Listar (paginado) |
+| POST | `/api/projects` | Crear proyecto |
+| GET | `/api/projects/stats` | Conteo por estado |
+| PATCH | `/api/projects/:id` | Actualizar |
+| PATCH | `/api/projects/:id/archive` | Archivar |
+
+### Asignaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/assignments` | Listar |
+| POST | `/api/assignments` | Crear asignación |
+| PATCH | `/api/assignments/:id/advance` | Avanzar estado |
+
+### Notificaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/notifications` | Bandeja propia |
+| PATCH | `/api/notifications/:id/read` | Marcar leída |
+
+### Otros
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/health` | Health check |
+| GET | `/api/docs` | Swagger UI |
 
 ## Decisiones que conviene conocer
 
