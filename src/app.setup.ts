@@ -29,7 +29,7 @@ export function configureApp(app: INestApplication): void {
   app.useGlobalFilters(new PrismaExceptionFilter());
 
   const config = new DocumentBuilder()
-    .setTitle('Plataforma I+D — API')
+    .setTitle('Plataforma R&D — API')
     .setDescription('Backend de la plataforma de Innovación y Desarrollo de Blackbird Labs.')
     .setVersion('0.1.0')
     .addBearerAuth()

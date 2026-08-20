@@ -74,7 +74,7 @@ export function htmlAsignacion(d: DatosAsignacion): string {
         BLACKBIRD<span style="font-weight:500;">LABS</span>
       </p>
       <p style="margin:6px 0 0;font:600 10px/1.4 Montserrat,'Segoe UI',Arial,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:${LIME};">
-        Plataforma I+D
+        Plataforma R&amp;D
       </p>
     </td></tr>
 
@@ -106,7 +106,7 @@ export function htmlAsignacion(d: DatosAsignacion): string {
 
     <tr><td style="border-top:1px solid ${GRIS_LINEA};padding:16px 28px;">
       <p style="margin:0;font:500 11px/1.5 Montserrat,'Segoe UI',Arial,sans-serif;color:#8A8880;">
-        Este aviso lo envía la Plataforma I+D del área de Innovación y Desarrollo. No hace falta responder.
+        Este aviso lo envía la Plataforma R&amp;D del área de Innovación y Desarrollo. No hace falta responder.
       </p>
     </td></tr>
 

@@ -2,7 +2,7 @@
   "name": "backq-d",
   "version": "0.1.0",
   "private": true,
-  "description": "API de la Plataforma I+D — Blackbird Labs (QR&D)",
+  "description": "API de la Plataforma R&D — Blackbird Labs (QR&D)",
   "scripts": {
     "build": "nest build",
     "start": "nest start",

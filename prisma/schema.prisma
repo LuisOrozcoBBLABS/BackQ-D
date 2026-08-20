@@ -1,4 +1,4 @@
-// Esquema de la Plataforma I+D — Blackbird Labs (QR&D)
+// Esquema de la Plataforma R&D — Blackbird Labs (QR&D)
 // Espeja los modelos que el front ya usaba en memoria (core/models.ts),
 // más lo que la versión simulada no tenía: credenciales, auditoría y borrado suave.
 

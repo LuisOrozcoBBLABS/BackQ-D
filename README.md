@@ -1,4 +1,4 @@
-# BackQ-D — API de la Plataforma I+D
+# BackQ-D — API de la Plataforma R&D
 
 Backend de la plataforma de Innovación y Desarrollo de Blackbird Labs (equipo QR&D).
 Reemplaza la capa simulada que el front tenía en `localStorage`: acá viven los datos
@@ -157,6 +157,7 @@ navegador oculta la cabecera y el front no puede paginar.
 
 | Rama | Qué cambió |
 |---|---|
+| `main` | Nomenclatura del área: **I+D** pasa a **R&D** en el título de Swagger, la plantilla de correo, la descripción del paquete y los comentarios del esquema. |
 | `main` | Paginación en el servidor: `X-Total-Count` en las listas de usuarios y proyectos, `GET /projects/stats` para los conteos por estado, y `tipo` + `sujetoId` en las notificaciones para que el clic lleve a la acción. |
 | `main` | Recuperación de contraseña mediada por un administrador: `POST /auth/forgot-password` público y sin revelar qué correos existen, solicitudes visibles en el módulo de usuarios, y el restablecimiento que cierra el pedido. Cinco tests del flujo. |
 | `main` | MVP: clave temporal bloqueada en el servidor (`PasswordChangeGuard`), maquina de estados de asignaciones con transiciones validas, y 15 tests unitarios de estados y guards. |
