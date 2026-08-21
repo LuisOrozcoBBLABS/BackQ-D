@@ -150,59 +150,60 @@ src/
 | GET | `/api/health` | Health check |
 | GET | `/api/docs` | Swagger UI |
 
-## Despliegue en Render
+## Despliegue en Railway
 
-### Paso 1: Crear cuenta en Render
-1. Ir a [render.com](https://render.com) y crear cuenta gratis
-2. Conectar tu cuenta de GitHub
+Railway te da **$5 gratis/mes** — alcanza para el backend + PostgreSQL **sin dormirse nunca**.
 
-### Paso 2: Crear la base de datos
-1. Dashboard → **New** → **PostgreSQL**
-2. Nombre: `backq-d-db`
-3. Plan: **Free**
-4. Anotar la **Internal Database URL** (se usa como `DATABASE_URL`)
+### Paso 1: Crear cuenta
+1. Ir a [railway.app](https://railway.app)
+2. Click **Login** → conectar con GitHub
 
-### Paso 3: Crear el servicio web
-1. Dashboard → **New** → **Web Service**
-2. Conectar el repo `LuisOrozcoBBLABS/BackQ-D`
-3. Configurar:
-   - **Name:** `backq-d-api`
-   - **Runtime:** Node
-   - **Build Command:** `npm install && npx prisma generate && npm run build`
-   - **Start Command:** `npm run migrate:deploy && npm run start:prod`
-   - **Plan:** Free
+### Paso 2: Crear proyecto
+1. Click **New Project** → **Empty Project**
+2. Click **+ New** → **Database** → **PostgreSQL**
+3. Anotar la variable `DATABASE_URL` que Railway genera automáticamente
+
+### Paso 3: Conectar el repo
+1. Click **+ New** → **GitHub Repo**
+2. Seleccionar `LuisOrozcoBBLABS/BackQ-D`
+3. Railway detecta NestJS automáticamente
 
 ### Paso 4: Variables de entorno
-Agregar en **Environment**:
+Ir a la pestaña **Variables** y agregar:
 
 | Variable | Valor |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | Internal URL de la DB (paso 2) |
-| `JWT_ACCESS_SECRET` | Cadena aleatoria larga |
-| `JWT_REFRESH_SECRET` | Otra cadena aleatoria distinta |
+| `DATABASE_URL` | La que generó Railway (paso 2) |
+| `JWT_ACCESS_SECRET` | `openssl rand -base64 48` en terminal |
+| `JWT_REFRESH_SECRET` | Otro valor distinto al anterior |
 | `SEED_ADMIN_PASSWORD` | Contraseña del admin (mín 10 chars) |
-| `PORT` | `10000` |
 
 ### Paso 5: Deploy
-1. Click **Create Web Service**
-2. Render instalará, migrará y arrancará automáticamente
-3. La API estará en `https://backq-d-api.onrender.com/api`
+1. Click **Deploy** → Railway instala, migra y arranca
+2. Ir a **Settings** → **Networking** → **Generate Domain**
+3. URL pública: `https://backq-d-production.up.railway.app`
 
-### Notas del free tier
-- El servicio se duerme tras 15 min sin tráfico
-- Al recibir request, tarda ~30s en despertar
-- PostgreSQL free tier: 90 días, luego se borra la data
-- Para producción real, usar plan Starter ($7/mes)
+### Paso 6: Sembrar datos iniciales
+1. Ir a la pestaña **Deployments**
+2. Click en el deploy activo → **Shell**
+3. Ejecutar: `npm run seed`
 
-### Variables de entorno (producción)
-Si usás correo corporativo, agregar también:
+### Resultado
+- API: `https://TU-URL.up.railway.app/api`
+- Swagger: `https://TU-URL.up.railway.app/api/docs`
+- **Nunca se duerme** ✓
+- **PostgreSQL incluido** ✓
+- **$0/mes** dentro del crédito gratis
+
+### Variables opcionales (correo)
+Si usás Microsoft Graph, agregar:
 - `AZURE_TENANT_ID`
 - `AZURE_CLIENT_ID`
 - `AZURE_CLIENT_SECRET`
 - `MAIL_FROM`
-- `FRONTEND_URL` (URL del front desplegado)
-- `APP_URL` (misma que FRONTEND_URL)
+- `FRONTEND_URL` (URL del front cuando lo despliegues)
+- `APP_URL` (igual que FRONTEND_URL)
 
 ## Decisiones que conviene conocer
 
