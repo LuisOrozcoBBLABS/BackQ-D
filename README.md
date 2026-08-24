@@ -83,7 +83,20 @@ inexistente y clave incorrecta, para no revelar qué correos existen.
 token vigente. Si llega un refresh viejo, se cierran todas las sesiones de esa cuenta.
 
 **Nada se borra.** Usuarios y grupos se desactivan; los proyectos se archivan
-(`archivado`, `archivadoAt`). No hay `DELETE` destructivo en la API.
+(`archivado`, `archivadoAt`). No hay `DELETE` destructivo en la API. Lo que la
+interfaz llama "eliminar" es ese archivado: el proyecto sale de las listas y del
+tablero, y `PATCH /projects/:id/restore` lo devuelve con su historial intacto.
+
+**Quién puede qué sobre un proyecto.** Tres permisos distintos, a propósito:
+
+| Operación | Quién |
+|---|---|
+| Ver | Autor, su grupo, **quien lo tiene asignado**, o `projects.viewAll` |
+| Mover etapa (`PATCH /projects/:id/estado`) | Autor, administrador o **quien lo tiene a cargo** |
+| Editar y eliminar (`PATCH /projects/:id`, `/archive`) | Autor o administrador |
+
+Mover una tarjeta del tablero y editar el contenido del proyecto no son lo mismo:
+quien ejecuta el trabajo avanza su etapa, pero no reescribe la propuesta de otro.
 
 **Los envíos no mienten.** Cada notificación guarda un registro por canal con estado
 real: `pendiente` (esperando al despachador), `enviado`, `fallido` o `no_configurado`
@@ -139,6 +152,57 @@ despachador distingue lo transitorio (429, 5xx, red caída) de lo definitivo
 WhatsApp y Teams no están habilitados: sus envíos quedan marcados
 `no_configurado` con el motivo, en lugar de mentir con un "enviado".
 
+## Etapas del proyecto y sus tiempos
+
+`ProjectStatus` es **un solo flujo de punta a punta**, no dos listas separadas:
+
+| Fase | Etapas |
+|---|---|
+| Embudo de innovación | `idea` · `evaluacion` · `aprobado` |
+| Ciclo de desarrollo | `analisis_diseno` · `desarrollo` · `code_review_qa` · `uat` · `listo_despliegue` |
+| Cierre | `produccion` |
+| Fuera del flujo | `descartado` |
+
+Los valores llevan guion bajo, igual que en Prisma. A diferencia de las
+asignaciones —que usan guion medio en la API y se convierten— acá no hay
+conversión: `@IsEnum(ProjectStatus)` los acepta tal cual y el front manda esos
+mismos literales.
+
+**`project_status_changes` registra cada entrada a una etapa.** Sin esa tabla no
+se puede responder "cuánto lleva en desarrollo": `updatedAt` se mueve con
+cualquier edición. Cada fila guarda la etapa, de dónde venía, quién la movió y
+cuándo. Se escribe en la misma transacción que el `update`, así nunca queda un
+estado sin su fecha de entrada, y también al crear el proyecto, para que su
+etapa inicial tenga origen.
+
+La migración `20260820170000_pipeline_e_historial_de_estados` siembra una fila
+por cada proyecto que ya existía, con su fecha de creación y atribuida al autor:
+sin ese relleno, el tablero no podría calcular tiempos para nada de lo cargado.
+
+Las listas traen **solo la última** entrada (la tarjeta necesita saber desde
+cuándo está en su etapa); el detalle trae el historial completo con quién movió
+cada una.
+
+## Filtros de proyectos
+
+Además de `q`, `sector`, `estado` y `groupId`, la lista acepta filtros sobre las
+asignaciones y las fechas:
+
+| Parámetro | Qué filtra |
+|---|---|
+| `asignadoAMi` | Solo lo que tiene a cargo quien pregunta. Es el alcance del tablero |
+| `asignadoA` · `asignadoPor` | Por responsable o por quien asignó |
+| `prioridad` · `estadoAsignacion` | De la asignación, no del proyecto |
+| `vencidos` | Con plazo pasado y sin cerrar; una completada tarde ya no urge |
+| `sinAsignar` | Sin nadie a cargo |
+| `desde` · `hasta` | Rango de fecha de registro, extremos inclusivos |
+
+Las condiciones sobre asignaciones van juntas dentro de **un solo `some`**:
+pedir "urgente" y "asignado a mí" no puede resolverse con una urgente de otra
+persona más una mía tranquila. Todos los filtros pasan por el mismo método
+privado que usan la lista, el conteo y `stats`, para que las cifras del
+encabezado no se desalineen con las filas.
+
 ## Paginación
 
 Las listas de `/users` y `/projects` devuelven el total que cumple los filtros en
@@ -157,6 +221,8 @@ navegador oculta la cabecera y el front no puede paginar.
 
 | Rama | Qué cambió |
 |---|---|
+| `main` | Editar y eliminar quedan restringidos al autor (o administrador), separados del permiso de mover etapa, y documentada la matriz de permisos por operación. |
+| `main` | Tablero de punta a punta: `ProjectStatus` pasa de 4 a 10 etapas (embudo + ciclo de desarrollo), nueva tabla `project_status_changes` con el historial por etapa, y filtros de proyectos por asignación, prioridad, estado de la asignación, vencidos y rango de fechas. |
 | `main` | Nomenclatura del área: **I+D** pasa a **R&D** en el título de Swagger, la plantilla de correo, la descripción del paquete y los comentarios del esquema. |
 | `main` | Paginación en el servidor: `X-Total-Count` en las listas de usuarios y proyectos, `GET /projects/stats` para los conteos por estado, y `tipo` + `sujetoId` en las notificaciones para que el clic lleve a la acción. |
 | `main` | Recuperación de contraseña mediada por un administrador: `POST /auth/forgot-password` público y sin revelar qué correos existen, solicitudes visibles en el módulo de usuarios, y el restablecimiento que cierra el pedido. Cinco tests del flujo. |

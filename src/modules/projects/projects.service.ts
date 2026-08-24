@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProjectStatus } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RequestUser } from '../../common/types/request-user';
 import { CreateProjectDto, SaveAiResultDto, UpdateProjectDto } from './dto/project.dto';
@@ -10,6 +10,41 @@ const PROJECT_INCLUDE = {
   autor: { select: { id: true, nombre: true, email: true, avatarUrl: true } },
   group: { select: { id: true, nombre: true } },
   _count: { select: { assignments: true } },
+  /// Solo la ultima: la tarjeta del tablero necesita saber desde cuando esta en
+  /// su etapa, y traer el historial completo de cada fila seria caro.
+  historial: {
+    take: 1,
+    orderBy: { createdAt: 'desc' },
+    select: { estado: true, anterior: true, createdAt: true },
+  },
+  /// Quienes lo tienen a cargo. La tarjeta del tablero muestra el responsable,
+  /// que no es el autor: el autor registro la idea, el responsable la ejecuta.
+  assignments: {
+    take: 3,
+    orderBy: { createdAt: 'desc' },
+    select: { asignadoA: { select: { id: true, nombre: true } } },
+  },
+} satisfies Prisma.ProjectInclude;
+
+/// El detalle si trae el historial completo, con quien movio cada etapa.
+const PROJECT_INCLUDE_DETALLE = {
+  ...PROJECT_INCLUDE,
+  historial: {
+    orderBy: { createdAt: 'asc' },
+    include: { por: { select: { id: true, nombre: true } } },
+  },
+  /// Con la fecha limite: el panel de detalle muestra el fin estimado, que el
+  /// proyecto no tiene como campo propio y sale de sus asignaciones.
+  assignments: {
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      estado: true,
+      prioridad: true,
+      fechaLimite: true,
+      asignadoA: { select: { id: true, nombre: true } },
+    },
+  },
 } satisfies Prisma.ProjectInclude;
 
 @Injectable()
@@ -23,8 +58,53 @@ export class ProjectsService {
   private alcance(user: RequestUser): Prisma.ProjectWhereInput {
     if (user.permisos.includes('projects.viewAll')) return {};
     return {
-      OR: [{ autorId: user.id }, ...(user.groupId ? [{ groupId: user.groupId }] : [])],
+      OR: [
+        { autorId: user.id },
+        // Si te asignaron el trabajo, podés ver el proyecto: sin esto, una
+        // asignación de otro grupo era invisible para quien tiene que hacerla.
+        { assignments: { some: { asignadoAId: user.id } } },
+        ...(user.groupId ? [{ groupId: user.groupId }] : []),
+      ],
     };
+  }
+
+  /**
+   * Condiciones sobre las asignaciones del proyecto. Todas las que se pidan
+   * tienen que cumplirse en la MISMA asignacion: pedir "urgente" y "asignado a
+   * mi" no puede resolverse con una urgente de otra persona mas una mia
+   * tranquila. Por eso van juntas dentro de un solo `some`.
+   */
+  private filtroAsignaciones(q: QueryProjectsDto, user: RequestUser): Prisma.ProjectWhereInput {
+    const cond: Prisma.AssignmentWhereInput = {};
+    if (q.asignadoAMi) cond.asignadoAId = user.id;
+    if (q.asignadoA) cond.asignadoAId = q.asignadoA;
+    if (q.asignadoPor) cond.asignadoPorId = q.asignadoPor;
+    if (q.prioridad) cond.prioridad = q.prioridad;
+    if (q.estadoAsignacion) cond.estado = q.estadoAsignacion;
+    if (q.vencidos) {
+      // Vencido = con plazo pasado y sin cerrar. Una completada tarde ya no urge.
+      cond.fechaLimite = { lt: new Date() };
+      cond.estado = q.estadoAsignacion ?? { not: 'completada' };
+    }
+
+    const filtros: Prisma.ProjectWhereInput[] = [];
+    if (Object.keys(cond).length) filtros.push({ assignments: { some: cond } });
+    if (q.sinAsignar) filtros.push({ assignments: { none: {} } });
+    return filtros.length ? { AND: filtros } : {};
+  }
+
+  /** Rango de fechas de registro. Extremos inclusivos. */
+  private filtroFechas(q: QueryProjectsDto): Prisma.ProjectWhereInput {
+    if (!q.desde && !q.hasta) return {};
+    const rango: Prisma.DateTimeFilter = {};
+    if (q.desde) rango.gte = new Date(q.desde);
+    if (q.hasta) {
+      // "hasta el 20" incluye todo el 20, no corta a medianoche.
+      const fin = new Date(q.hasta);
+      fin.setHours(23, 59, 59, 999);
+      rango.lte = fin;
+    }
+    return { createdAt: rango };
   }
 
   /** Filtros comunes a la lista y al conteo, para que nunca se desalineen. */
@@ -36,6 +116,8 @@ export class ProjectsService {
         q.sector ? { sector: q.sector } : {},
         q.estado ? { estado: q.estado } : {},
         q.groupId ? { groupId: q.groupId } : {},
+        this.filtroAsignaciones(q, user),
+        this.filtroFechas(q),
         q.q
           ? {
               OR: [
@@ -86,14 +168,20 @@ export class ProjectsService {
   }
 
   async findOne(id: string, user: RequestUser) {
-    const project = await this.prisma.project.findUnique({ where: { id }, include: PROJECT_INCLUDE });
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: PROJECT_INCLUDE_DETALLE,
+    });
     if (!project) throw new NotFoundException('El proyecto no existe.');
 
+    // Mismo criterio que `alcance()`, incluida la asignación propia: si el
+    // proyecto aparece en tu tablero, su detalle no puede darte 403.
     const puedeVer =
       user.permisos.includes('projects.viewAll') ||
       project.autorId === user.id ||
+      project.assignments.some(a => a.asignadoA?.id === user.id) ||
       (project.groupId !== null && project.groupId === user.groupId);
-    if (!puedeVer) throw new ForbiddenException('Este proyecto es de otro grupo.');
+    if (!puedeVer) throw new ForbiddenException('Este proyecto no es tuyo ni de tu grupo.');
 
     return project;
   }
@@ -101,6 +189,9 @@ export class ProjectsService {
   create(dto: CreateProjectDto, user: RequestUser) {
     return this.prisma.project.create({
       data: {
+        // La primera entrada de etapa nace con el proyecto: sin ella no se
+        // podria saber desde cuando esta en su etapa inicial.
+        historial: { create: { estado: dto.estado ?? 'idea', porId: user.id } },
         nombre: dto.nombre.trim(),
         sector: dto.sector.trim(),
         problema: dto.problema ?? '',
@@ -120,9 +211,17 @@ export class ProjectsService {
   }
 
   async update(id: string, dto: UpdateProjectDto, user: RequestUser) {
-    await this.soloAutorOAdmin(id, user);
+    const antes = await this.soloAutorOAdmin(id, user);
 
     return this.prisma.$transaction(async tx => {
+      // El cambio de etapa se registra en la misma transaccion que el update:
+      // si una de las dos falla, no queda un estado sin su fecha de entrada.
+      if (dto.estado !== undefined && dto.estado !== antes.estado) {
+        await tx.projectStatusChange.create({
+          data: { projectId: id, estado: dto.estado, anterior: antes.estado, porId: user.id },
+        });
+      }
+
       if (dto.similares) {
         await tx.projectSimilar.deleteMany({ where: { projectId: id } });
         if (dto.similares.length) {
@@ -134,6 +233,7 @@ export class ProjectsService {
 
       return tx.project.update({
         where: { id },
+        include: PROJECT_INCLUDE_DETALLE,
         data: {
           ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
           ...(dto.sector !== undefined ? { sector: dto.sector.trim() } : {}),
@@ -144,7 +244,47 @@ export class ProjectsService {
           ...(dto.estado !== undefined ? { estado: dto.estado } : {}),
           ...(dto.groupId !== undefined ? { groupId: dto.groupId } : {}),
         },
-        include: PROJECT_INCLUDE,
+      });
+    });
+  }
+
+  /**
+   * Mueve la etapa, y nada más. Es la operación del tablero.
+   *
+   * El permiso es más amplio que el de editar: quien tiene el trabajo a cargo
+   * puede avanzar su etapa aunque no sea el autor del proyecto. Sin esto el
+   * tablero sería de solo lectura para justamente quien lo usa.
+   */
+  async cambiarEstado(id: string, estado: ProjectStatus, user: RequestUser) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      select: {
+        autorId: true,
+        estado: true,
+        assignments: { where: { asignadoAId: user.id }, select: { id: true }, take: 1 },
+      },
+    });
+    if (!project) throw new NotFoundException('El proyecto no existe.');
+
+    const puede =
+      project.autorId === user.id || user.rol === 'admin' || project.assignments.length > 0;
+    if (!puede) {
+      throw new ForbiddenException('Solo quien lo tiene a cargo, su autor o un administrador puede moverlo.');
+    }
+
+    if (estado === project.estado) {
+      // Nada que hacer: no se registra una entrada de etapa falsa.
+      return this.prisma.project.findUniqueOrThrow({ where: { id }, include: PROJECT_INCLUDE_DETALLE });
+    }
+
+    return this.prisma.$transaction(async tx => {
+      await tx.projectStatusChange.create({
+        data: { projectId: id, estado, anterior: project.estado, porId: user.id },
+      });
+      return tx.project.update({
+        where: { id },
+        data: { estado },
+        include: PROJECT_INCLUDE_DETALLE,
       });
     });
   }
@@ -173,11 +313,17 @@ export class ProjectsService {
     });
   }
 
-  private async soloAutorOAdmin(id: string, user: RequestUser): Promise<void> {
-    const project = await this.prisma.project.findUnique({ where: { id }, select: { autorId: true } });
+  /** Devuelve el estado previo: quien registra el cambio necesita saber de donde venia. */
+  private async soloAutorOAdmin(id: string, user: RequestUser) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      select: { autorId: true, estado: true },
+    });
     if (!project) throw new NotFoundException('El proyecto no existe.');
 
     const puede = project.autorId === user.id || user.rol === 'admin';
     if (!puede) throw new ForbiddenException('Solo el autor o un administrador puede modificarlo.');
+
+    return project;
   }
 }

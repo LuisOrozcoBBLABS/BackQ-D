@@ -22,10 +22,19 @@ enum Genero {
   prefiero_no_decirlo
 }
 
+/// Un solo flujo de punta a punta: las tres primeras son el embudo de
+/// innovacion, las seis siguientes el ciclo de desarrollo. `descartado` sale
+/// del tablero y no tiene siguiente etapa.
 enum ProjectStatus {
   idea
   evaluacion
   aprobado
+  analisis_diseno
+  desarrollo
+  code_review_qa
+  uat
+  listo_despliegue
+  produccion
   descartado
 }
 
@@ -152,6 +161,7 @@ model User {
   asignaciones  Assignment[]     @relation("AsignadoA")
   asignadasPor  Assignment[]     @relation("AsignadoPor")
   notificaciones Notification[]
+  cambiosDeEstado ProjectStatusChange[] @relation("CambioPor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -203,6 +213,7 @@ model Project {
 
   similares   ProjectSimilar[]
   assignments Assignment[]
+  historial   ProjectStatusChange[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -224,6 +235,28 @@ model ProjectSimilar {
 
   @@index([projectId])
   @@map("project_similars")
+}
+
+/// Una fila por cada entrada a una etapa. De aca salen los tiempos por etapa y
+/// el historial del tablero: sin esto, "cuanto lleva en desarrollo" no se puede
+/// responder, porque `updatedAt` se mueve con cualquier edicion.
+model ProjectStatusChange {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  estado   ProjectStatus
+  /// Etapa de la que viene. Null en la primera fila de cada proyecto.
+  anterior ProjectStatus?
+
+  /// Quien lo movio. Null si esa cuenta se borro.
+  porId String?
+  por   User?  @relation("CambioPor", fields: [porId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("project_status_changes")
 }
 
 model Assignment {
