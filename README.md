@@ -40,6 +40,15 @@ reales, las credenciales y los permisos.
 
    Si están vacías, los envíos quedan en `pendiente` y se envían al configurarlas.
 
+   **Variables opcionales (motor de IA):**
+   - `AI_PROVIDER` — `gemini` o `ninguno`. Con `ninguno` el endpoint de IA responde 503.
+   - `GEMINI_API_KEY` — de AI Studio. Sin ella el endpoint responde 503.
+   - `GEMINI_MODEL` — configurable a propósito: la oferta de la capa gratuita cambia.
+   - `AI_TIMEOUT_MS`, `AI_MAX_CARACTERES`, `AI_MAX_PAGINAS_PDF` — topes de la extracción.
+
+   Leer la advertencia de privacidad de la sección *Decisiones que no se negocian*
+   antes de poner una key acá.
+
 3. **Instalar, migrar y sembrar:**
 
    ```bash
@@ -99,6 +108,7 @@ src/
     ├── projects/        CRUD, alcance por grupo, archivar, resultados de IA
     ├── assignments/     asignar con prioridad y canales
     ├── notifications/   bandeja propia, leídas
+    ├── ai/              borrador de proyecto desde un PDF o DOCX (no persiste nada)
     └── health/
 ```
 
@@ -136,13 +146,18 @@ src/
 |---|---|---|
 | GET | `/api/assignments` | Listar |
 | POST | `/api/assignments` | Crear asignación |
-| PATCH | `/api/assignments/:id/advance` | Avanzar estado |
+| PATCH | `/api/assignments/:id/estado` | Mover el estado (adelante o atrás) |
 
 ### Notificaciones
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/notifications` | Bandeja propia |
 | PATCH | `/api/notifications/:id/read` | Marcar leída |
+
+### IA
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/ai/borrador-proyecto` | Propone el borrador de un proyecto desde un PDF o DOCX (`multipart/form-data`, campo `archivo`). Requiere `ai.use`. 4 por minuto. No persiste nada. |
 
 ### Otros
 | Método | Ruta | Descripción |
@@ -226,9 +241,29 @@ real: `pendiente` (esperando al despachador), `enviado`, `fallido` o `no_configu
 (por ejemplo, WhatsApp sin teléfono en el perfil). La versión anterior escribía
 "Enviado (simulado)" sin enviar nada.
 
-**Motor de IA: todavía no.** `PATCH /projects/:id/ai` guarda lo que el front calcule
-hoy. En la fase 2 el cálculo se muda al backend, con la API key de OpenAI en el `.env`
-del servidor — nunca en el front, donde quedaría expuesta en el bundle.
+**Motor de IA: el borrador de proyecto ya corre en el servidor.**
+`POST /api/ai/borrador-proyecto` recibe un PDF o un DOCX, extrae su texto, le pide a un
+modelo la ficha del proyecto y devuelve un borrador saneado. La API key vive solo en el
+`.env` del servidor — nunca en el front, donde quedaría expuesta en el bundle.
+
+El módulo **no persiste nada**: el archivo se procesa en memoria (`memoryStorage`) y se
+descarta, y el borrador viaja en la respuesta. El guardado sigue siendo `POST /projects`.
+Esta feature no agregó ninguna migración de Prisma.
+
+`PATCH /projects/:id/ai` sigue guardando lo que le manden: las otras funciones de IA
+(score, comité, búsqueda semántica) siguen fuera del alcance.
+
+**ADVERTENCIA de privacidad.** El texto extraído se envía a Google (Gemini). En la capa
+gratuita, sus términos permiten usar el contenido para mejorar sus productos, así que
+habilitar esto en producción **requiere el aval de quien sea dueño del gobierno de
+datos**. El interruptor de apagado es `AI_PROVIDER=ninguno`: el endpoint responde 503 y
+no sale un solo byte, sin desplegar código. Sin `GEMINI_API_KEY` pasa lo mismo.
+
+**Política de logs.** Se logea una línea por request con `userId`, formato, caracteres
+leídos, si se truncó, páginas, duración, modelo, tokens y cantidad de avisos — números,
+enums y un UUID. **No** se logea nunca el texto del documento (ni un fragmento), el
+prompt, la respuesta del modelo, ni el **nombre del archivo** (que es PII: pensá en
+`Acta despido Juan Perez.pdf`). Hay un test que lo verifica.
 
 ## Recuperar contraseña (sin correo)
 
