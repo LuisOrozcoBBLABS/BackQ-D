@@ -161,7 +161,9 @@ export class ProjectsService {
     return this.prisma.project.findMany({
       where: this.filtros(q, user),
       include: PROJECT_INCLUDE,
-      orderBy: { createdAt: 'desc' },
+      // El defecto sigue siendo lo mas reciente primero: es lo que la mayoria
+      // necesita al entrar, y un buen defecto ahorra mas que cualquier filtro.
+      orderBy: { [q.sort ?? 'createdAt']: q.dir ?? 'desc' },
       skip: q.skip ?? 0,
       take: Math.min(q.take ?? 50, 200),
     });

@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -12,6 +13,15 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+/**
+ * Campos por los que se puede ordenar. Es una lista blanca, no una restriccion
+ * arbitraria: `orderBy` con un nombre de campo que llega del cliente permite
+ * ordenar por columnas que no deberian ser visibles, y en el peor caso romper
+ * la consulta. Agregar una entrada acá es una decision explicita.
+ */
+export const ORDEN_PROYECTOS = ['nombre', 'sector', 'estado', 'createdAt', 'updatedAt'] as const;
+export type OrdenProyectos = (typeof ORDEN_PROYECTOS)[number];
 
 export class QueryProjectsDto {
   @ApiPropertyOptional({ description: 'Busca en nombre, problema y solución.' })
@@ -101,6 +111,21 @@ export class QueryProjectsDto {
   @IsInt()
   @Min(0)
   skip?: number;
+
+  @ApiPropertyOptional({
+    enum: ORDEN_PROYECTOS,
+    description:
+      'Campo por el que ordenar. Lista blanca a proposito: interpolar un nombre ' +
+      'de campo que venga del cliente en el orderBy es una inyeccion.',
+  })
+  @IsOptional()
+  @IsIn(ORDEN_PROYECTOS)
+  sort?: OrdenProyectos;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  dir?: 'asc' | 'desc';
 
   @ApiPropertyOptional({ default: 50, maximum: 200 })
   @IsOptional()

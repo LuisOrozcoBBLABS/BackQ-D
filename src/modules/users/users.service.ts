@@ -38,7 +38,8 @@ export class UsersService {
     const users = await this.prisma.user.findMany({
       where: this.filtros(q),
       include: USER_INCLUDE,
-      orderBy: { nombre: 'asc' },
+      // Alfabetico por defecto: en una lista de personas es como se busca.
+      orderBy: { [q.sort ?? 'nombre']: q.dir ?? 'asc' },
       skip: q.skip ?? 0,
       take: Math.min(q.take ?? 50, 200),
     });

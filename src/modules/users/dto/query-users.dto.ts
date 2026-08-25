@@ -3,6 +3,10 @@ import { RoleId } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
+/** Lista blanca de orden. Ver el comentario en query-projects.dto.ts. */
+export const ORDEN_USUARIOS = ['nombre', 'email', 'cargo', 'createdAt', 'ultimoLoginAt'] as const;
+export type OrdenUsuarios = (typeof ORDEN_USUARIOS)[number];
+
 export class QueryUsersDto {
   @ApiPropertyOptional({ description: 'Busca por nombre o correo.' })
   @IsOptional()
@@ -19,6 +23,16 @@ export class QueryUsersDto {
   @IsOptional()
   @IsIn(['activos', 'inactivos', 'todos'])
   estado?: 'activos' | 'inactivos' | 'todos';
+  @ApiPropertyOptional({ enum: ORDEN_USUARIOS })
+  @IsOptional()
+  @IsIn(ORDEN_USUARIOS)
+  sort?: OrdenUsuarios;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  dir?: 'asc' | 'desc';
+
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
