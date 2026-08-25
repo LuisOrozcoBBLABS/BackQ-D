@@ -3,7 +3,7 @@ import { Prisma, ProjectStatus } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RequestUser } from '../../common/types/request-user';
 import { CreateProjectDto, SaveAiResultDto, UpdateProjectDto } from './dto/project.dto';
-import { QueryProjectsDto } from './dto/query-projects.dto';
+import { ORDEN_PROYECTOS, OrdenProyectos, QueryProjectsDto } from './dto/query-projects.dto';
 
 const PROJECT_INCLUDE = {
   similares: { orderBy: { orden: 'asc' } },
@@ -55,6 +55,16 @@ export class ProjectsService {
    * Visibilidad: con projects.viewAll se ve todo. Sin ese permiso, cada persona ve
    * los propios y los de su grupo. Se decide en el servidor, no en el front.
    */
+  /**
+   * El mismo predicado de visibilidad, para otros modulos. Existe porque
+   * asignar un proyecto que no podes ver te da acceso de lectura a el por la
+   * via de la asignacion: quien crea una asignacion tiene que comprobar el
+   * alcance con ESTE predicado, no con una copia que se desincronice.
+   */
+  alcanceDe(user: RequestUser): Prisma.ProjectWhereInput {
+    return this.alcance(user);
+  }
+
   private alcance(user: RequestUser): Prisma.ProjectWhereInput {
     if (user.permisos.includes('projects.viewAll')) return {};
     return {
@@ -157,13 +167,36 @@ export class ProjectsService {
     return conteo;
   }
 
+  /**
+   * Orden de la lista, con dos garantias que el DTO por si solo no da.
+   *
+   * La lista blanca se revalida ACA y no solo en el DTO: el tipo de TypeScript
+   * no existe en runtime, asi que cualquier camino que no pase por el pipe
+   * global (un job, un export, un test que llame al servicio con un objeto
+   * plano) meteria en `orderBy` lo que le pasen. Es el mismo doble cinturon
+   * que ya tiene `take` con su Math.min.
+   *
+   * Y el desempate por id hace determinista la paginacion: ningun campo
+   * ordenable es unico, y sin desempate PostgreSQL puede devolver una
+   * permutacion distinta en cada consulta, con filas repetidas entre paginas y
+   * filas que no aparecen en ninguna. Con `estado` —10 valores posibles— casi
+   * todas las filas estan empatadas y paginar seria practicamente aleatorio.
+   */
+  private orden(q: QueryProjectsDto): Prisma.ProjectOrderByWithRelationInput[] {
+    const campo: OrdenProyectos = ORDEN_PROYECTOS.includes(q.sort as OrdenProyectos)
+      ? (q.sort as OrdenProyectos)
+      : 'createdAt';
+    const sentido: Prisma.SortOrder = q.dir === 'asc' ? 'asc' : 'desc';
+    return [{ [campo]: sentido }, { id: 'asc' }];
+  }
+
   findAll(q: QueryProjectsDto, user: RequestUser) {
     return this.prisma.project.findMany({
       where: this.filtros(q, user),
       include: PROJECT_INCLUDE,
       // El defecto sigue siendo lo mas reciente primero: es lo que la mayoria
       // necesita al entrar, y un buen defecto ahorra mas que cualquier filtro.
-      orderBy: { [q.sort ?? 'createdAt']: q.dir ?? 'desc' },
+      orderBy: this.orden(q),
       skip: q.skip ?? 0,
       take: Math.min(q.take ?? 50, 200),
     });

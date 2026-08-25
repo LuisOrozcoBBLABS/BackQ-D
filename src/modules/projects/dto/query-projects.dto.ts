@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { AssignmentStatus, Prioridad, ProjectStatus } from '@prisma/client';
+import { AssignmentStatus, Prioridad, Prisma, ProjectStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -19,8 +19,19 @@ import {
  * arbitraria: `orderBy` con un nombre de campo que llega del cliente permite
  * ordenar por columnas que no deberian ser visibles, y en el peor caso romper
  * la consulta. Agregar una entrada acá es una decision explicita.
+ *
+ * El `satisfies` hace que el compilador verifique cada nombre contra el modelo
+ * real: sin el, una clave computada se ensancha a `{ [x: string]: ... }` y un
+ * typo o un campo renombrado en el schema COMPILA igual, y explota en runtime
+ * con un PrismaClientValidationError que el filtro no traduce (sale 500).
  */
-export const ORDEN_PROYECTOS = ['nombre', 'sector', 'estado', 'createdAt', 'updatedAt'] as const;
+export const ORDEN_PROYECTOS = [
+  'nombre',
+  'sector',
+  'estado',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof Prisma.ProjectOrderByWithRelationInput)[];
 export type OrdenProyectos = (typeof ORDEN_PROYECTOS)[number];
 
 export class QueryProjectsDto {
