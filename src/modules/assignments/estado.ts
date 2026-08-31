@@ -11,6 +11,24 @@ import { AssignmentStatus } from '@prisma/client';
  * por terminado por error es común, y obligar a crear una asignación nueva para
  * corregirlo rompía la trazabilidad del trabajo real. Reabrir devuelve la
  * asignación a `en_curso`, que es donde estaba antes de cerrarse.
+ *
+ * ⚠️ ESTA TABLA ESTÁ ESPEJADA EN EL FRONT:
+ * FrontQ-D · src/app/core/transiciones.ts
+ *
+ * El front la copia para apagar de antemano lo que acá se va a rechazar, en
+ * lugar de dejar intentar el movimiento y mostrar un error después. Si cambiás
+ * una fila de PERMITIDAS, cambiala también allá o la interfaz va a ofrecer
+ * acciones que este archivo rechaza — o, peor, va a esconder acciones que sí
+ * acepta.
+ *
+ * Eso último ya pasó, y conviene saber cómo: alguien "alineó" el front a
+ * `completada: []` mirando una copia local de este repositorio que estaba
+ * atrasada, sin el commit que habilitó reabrir. El front estaba bien y el
+ * arreglo le quitó la función. La verificación correcta es contra `origin/main`
+ * de este repositorio, no contra el working copy que se tenga a mano.
+ *
+ * Los tests de transiciones.spec.ts del front fijan la copia, incluido el
+ * invariante de que ningún estado es final.
  */
 const PERMITIDAS: Record<AssignmentStatus, AssignmentStatus[]> = {
   pendiente: [AssignmentStatus.aceptada],
