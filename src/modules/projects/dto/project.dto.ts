@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProjectStatus } from '@prisma/client';
+import { ProjectStatus, TipoPrestacion } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -41,6 +41,26 @@ export class CreateProjectDto {
   @IsString()
   @MaxLength(80)
   sector!: string;
+
+  @ApiPropertyOptional({
+    example: 'Bancolombia',
+    description: 'A quien se le presta el servicio. Vacio = interno.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(140)
+  cliente?: string;
+
+  /**
+   * Que se presta: gente o producto. `null` es un valor con significado —"sin
+   * clasificar"— y no un campo ausente, asi que un PATCH puede mandarlo para
+   * devolver un proyecto a ese estado. `@IsOptional` deja pasar null ademas de
+   * undefined, y el servicio distingue los dos casos con `!== undefined`.
+   */
+  @ApiPropertyOptional({ enum: TipoPrestacion, nullable: true })
+  @IsOptional()
+  @IsEnum(TipoPrestacion)
+  tipoPrestacion?: TipoPrestacion | null;
 
   @ApiPropertyOptional()
   @IsOptional()

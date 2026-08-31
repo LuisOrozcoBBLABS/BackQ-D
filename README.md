@@ -342,12 +342,22 @@ asignaciones y las fechas:
 
 | Parámetro | Qué filtra |
 |---|---|
+| `tipoPrestacion` | Qué se presta: `talento` (gente), `solucion` (el producto) o `sin_clasificar` |
 | `asignadoAMi` | Solo lo que tiene a cargo quien pregunta. Es el alcance del tablero |
 | `asignadoA` · `asignadoPor` | Por responsable o por quien asignó |
 | `prioridad` · `estadoAsignacion` | De la asignación, no del proyecto |
 | `vencidos` | Con plazo pasado y sin cerrar; una completada tarde ya no urge |
 | `sinAsignar` | Sin nadie a cargo |
 | `desde` · `hasta` | Rango de fecha de registro, extremos inclusivos |
+
+`sin_clasificar` no es un valor del enum `TipoPrestacion`: es la forma de pedir
+`tipoPrestacion IS NULL`, y el servicio lo traduce en un solo lugar. Los
+proyectos registrados antes de que existiera la distinción quedaron así a
+propósito, sin un valor inventado por la migración.
+
+`q` busca en `nombre`, `problema`, `solucion` **y `cliente`**. El cliente es
+texto libre y no tiene filtro propio: un desplegable de clientes mostraría una
+lista sucia de variantes de la misma empresa.
 
 Las condiciones sobre asignaciones van juntas dentro de **un solo `some`**:
 pedir "urgente" y "asignado a mí" no puede resolverse con una urgente de otra
