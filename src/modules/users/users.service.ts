@@ -3,7 +3,7 @@ import { Genero, Prisma, RoleId } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { QueryUsersDto } from './dto/query-users.dto';
+import { ORDEN_USUARIOS, OrdenUsuarios, QueryUsersDto } from './dto/query-users.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { USER_INCLUDE, UserDto, toUserDto } from './user.mapper';
@@ -34,11 +34,35 @@ export class UsersService {
     return this.prisma.user.count({ where: this.filtros(q) });
   }
 
+  /**
+   * Orden de la lista. Ver el comentario extenso en projects.service.ts: la
+   * lista blanca se revalida en runtime porque el tipo no existe ahi, y el
+   * desempate por id hace determinista la paginacion.
+   *
+   * El caso de `ultimoLoginAt` es propio de este modulo: es nullable, y en
+   * PostgreSQL `ORDER BY col DESC` pone los NULL PRIMERO. Sin `nulls: 'last'`,
+   * un admin que ordena por "ultimo ingreso, mas reciente arriba" recibe arriba
+   * de todo a la gente que nunca se logueo — exactamente lo contrario de lo que
+   * pidio.
+   */
+  private orden(q: QueryUsersDto): Prisma.UserOrderByWithRelationInput[] {
+    const campo: OrdenUsuarios = ORDEN_USUARIOS.includes(q.sort as OrdenUsuarios)
+      ? (q.sort as OrdenUsuarios)
+      : 'nombre';
+    const sentido: Prisma.SortOrder = q.dir === 'desc' ? 'desc' : 'asc';
+    const primero: Prisma.UserOrderByWithRelationInput =
+      campo === 'ultimoLoginAt' || campo === 'cargo'
+        ? { [campo]: { sort: sentido, nulls: 'last' } }
+        : { [campo]: sentido };
+    return [primero, { id: 'asc' }];
+  }
+
   async findAll(q: QueryUsersDto): Promise<UserDto[]> {
     const users = await this.prisma.user.findMany({
       where: this.filtros(q),
       include: USER_INCLUDE,
-      orderBy: { nombre: 'asc' },
+      // Alfabetico por defecto: en una lista de personas es como se busca.
+      orderBy: this.orden(q),
       skip: q.skip ?? 0,
       take: Math.min(q.take ?? 50, 200),
     });

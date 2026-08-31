@@ -118,3 +118,14 @@ export class SaveAiResultDto {
   @IsObject()
   enrichment?: Record<string, unknown>;
 }
+
+/**
+ * Solo la etapa. Va aparte de `UpdateProjectDto` porque su permiso es distinto:
+ * mover una tarjeta del tablero lo puede hacer quien tiene el trabajo a cargo,
+ * editar el contenido del proyecto no.
+ */
+export class CambiarEstadoDto {
+  @ApiProperty({ enum: ProjectStatus })
+  @IsEnum(ProjectStatus)
+  estado!: ProjectStatus;
+}

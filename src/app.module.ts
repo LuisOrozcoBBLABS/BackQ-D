@@ -8,7 +8,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { PrismaModule } from './infra/prisma/prisma.module';
-import { AiModule } from './modules/ai/ai.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { GroupsModule } from './modules/groups/groups.module';
@@ -30,7 +29,6 @@ import { UsersModule } from './modules/users/users.module';
     ProjectsModule,
     AssignmentsModule,
     NotificationsModule,
-    AiModule,
     HealthModule,
   ],
   providers: [

@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { RequestUser } from '../../common/types/request-user';
-import { CreateProjectDto, SaveAiResultDto, UpdateProjectDto } from './dto/project.dto';
+import { CambiarEstadoDto, CreateProjectDto, SaveAiResultDto, UpdateProjectDto } from './dto/project.dto';
 import { QueryProjectsDto } from './dto/query-projects.dto';
 import { ProjectsService } from './projects.service';
 
@@ -59,6 +59,21 @@ export class ProjectsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.projects.update(id, dto, user);
+  }
+
+  @Patch(':id/estado')
+  @ApiOperation({
+    summary: 'Mueve la etapa del proyecto. Es la operacion del tablero.',
+    description:
+      'Permiso mas amplio que editar: tambien puede quien tiene el proyecto a cargo. ' +
+      'Registra la entrada a la etapa nueva en la misma transaccion.',
+  })
+  cambiarEstado(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CambiarEstadoDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.projects.cambiarEstado(id, dto.estado, user);
   }
 
   @Patch(':id/ai')
