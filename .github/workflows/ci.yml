@@ -1,0 +1,51 @@
+# Verificación de la API en cada pull request.
+#
+# NO toca ninguna base de datos. Los specs usan un doble de Prisma, así que no
+# hace falta un servicio de Postgres, y acá NO se corre ninguna migración: en
+# este proyecto las migraciones son siempre un paso manual y revisado.
+name: CI de la API
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-api-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Tipos y tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # El proyecto corre en Node 22 en local.
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Imprescindible y no obvio: el paquete no tiene postinstall, y tanto el
+      # chequeo de tipos como los specs importan enums de @prisma/client
+      # (RoleId, EstadoSolicitud, AssignmentStatus). Sin el cliente generado
+      # esos imports no existen. `generate` lee el schema, no la base: no
+      # necesita conexión.
+      - name: Generar el cliente de Prisma
+        run: npx prisma generate
+
+      # Acá se verifica la lista blanca del ordenamiento: el tipo
+      # CampoOrdenableUsuario excluye passwordHash y refreshTokenHash, así que
+      # meter uno de esos campos en ORDEN_USUARIOS falla en este paso.
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test

@@ -50,6 +50,30 @@ reales, las credenciales y los permisos.
    - Swagger: `http://localhost:3000/api/docs`
    - Health: `http://localhost:3000/api/health`
 
+## Testing
+
+```bash
+npm test   # Jest, 20 tests
+```
+
+Los specs usan un doble de Prisma (`prismaFalso`), así que **no hace falta una
+base de datos** para correrlos. Cubren la máquina de estados de asignaciones,
+`PasswordChangeGuard`, `PermissionsGuard` y el flujo de restablecimiento.
+
+El chequeo de tipos vale por sí solo, y no solo por prolijidad: la lista blanca
+del ordenamiento se apoya en el tipo `CampoOrdenableUsuario`, que excluye
+`passwordHash` y `refreshTokenHash`. Meter uno de esos campos en
+`ORDEN_USUARIOS` no compila.
+
+```bash
+npx prisma generate   # imprescindible: el paquete no tiene postinstall
+npx tsc --noEmit
+```
+
+Las dos cosas corren solas en cada pull request desde
+`.github/workflows/ci.yml`. Ese workflow **no toca ninguna base y no corre
+migraciones**: acá las migraciones son siempre un paso manual y revisado.
+
 ## Cómo está organizado
 
 ```
@@ -221,6 +245,10 @@ navegador oculta la cabecera y el front no puede paginar.
 
 | Rama | Qué cambió |
 |---|---|
+| `feat/pipeline-y-permisos` | **Tres correcciones de seguridad.** `POST /assignments` comprobaba que el proyecto existiera, no que quien asigna pudiera verlo: como el alcance de lectura incluye «me lo asignaron», cualquier cuenta con `assignments.create` podía asignarse cualquier proyecto de la organización y ganar lectura más capacidad de mover su etapa — el permiso funcionaba como un `projects.viewAll` de facto. Faltaba `trust proxy`, y sin él el límite de login de 5/min era global: cinco peticiones por minuto dejaban sin login a toda el área. Y el `orderBy` no tenía desempate, así que la paginación devolvía filas repetidas y salteadas (con `sort=estado`, que tiene 10 valores, era casi aleatorio). |
+| `feat/pipeline-y-permisos` | **CI en cada pull request** (`ci.yml`): cliente de Prisma, tipos y los 20 tests. Sin base de datos y sin correr migraciones — acá siguen siendo un paso manual y revisado. |
+| `feat/pipeline-y-permisos` | Orden en el servidor con lista blanca en proyectos y usuarios (`sort` + `dir`). El tipo `CampoOrdenableUsuario` excluye `passwordHash` y `refreshTokenHash`, así que meter uno de esos en la lista falla al compilar: ordenar por una columna que nunca se devuelve es un oráculo. `ultimoLoginAt` y `cargo` ordenan con `nulls: 'last'`, porque en PostgreSQL los NULL van primero en DESC y «último ingreso más reciente arriba» devolvía primero a quien nunca entró. |
+| `feat/pipeline-y-permisos` | La tabla de transiciones de asignaciones queda avisada de que está espejada en el front, con el caso que ya se desincronizó: el front tenía `completada: ['en-curso']` mientras acá es `[]`, así que la interfaz ofrecía reabrir y el servidor lo rechazaba. |
 | `main` | Editar y eliminar quedan restringidos al autor (o administrador), separados del permiso de mover etapa, y documentada la matriz de permisos por operación. |
 | `main` | Tablero de punta a punta: `ProjectStatus` pasa de 4 a 10 etapas (embudo + ciclo de desarrollo), nueva tabla `project_status_changes` con el historial por etapa, y filtros de proyectos por asignación, prioridad, estado de la asignación, vencidos y rango de fechas. |
 | `main` | Nomenclatura del área: **I+D** pasa a **R&D** en el título de Swagger, la plantilla de correo, la descripción del paquete y los comentarios del esquema. |
