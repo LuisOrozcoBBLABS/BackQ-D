@@ -14,6 +14,12 @@ datasource db {
 enum RoleId {
   admin
   colaborador
+  /// Solo lectura, para el equipo comercial. No se le da ningun permiso de
+  /// escritura y no hace falta inventarle bloqueos nuevos: las cinco rutas que
+  /// escriben proyectos ya exigen o bien un permiso que no tiene
+  /// (projects.create, ai.use) o bien ser el autor o admin (update, archive,
+  /// restore, estado). Ver comercial-solo-lectura.spec.ts, que lo fija.
+  comercial
 }
 
 enum Genero {
@@ -189,6 +195,11 @@ model Project {
   id       String @id @default(uuid())
   nombre   String
   sector   String
+
+  /// Cliente para el que se hace el proyecto. Opcional a proposito: hay ideas
+  /// internas que no tienen cliente, y volverlo obligatorio dejaria sin poder
+  /// guardar todo lo ya cargado.
+  cliente  String?
   problema String @default("")
   dolores  String @default("")
   solucion String @default("")
