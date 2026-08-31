@@ -9,6 +9,12 @@ reales, las credenciales y los permisos.
   capas `controller → service → Prisma`, infraestructura en `src/infra/`.
 - **Front:** [FrontQ-D](https://github.com/LuisOrozcoBBLABS/FrontQ-D) (Angular)
 
+## Prerrequisitos
+
+- Node.js 20+ (recomendado: 22 LTS)
+- npm 11+
+- PostgreSQL 16 corriendo localmente
+
 ## Arrancar en local
 
 1. **Base de datos.** Necesitas PostgreSQL 16 corriendo. Prisma crea la base si no existe.
@@ -25,6 +31,14 @@ reales, las credenciales y los permisos.
    - `SEED_ADMIN_PASSWORD` — la clave del primer administrador (mínimo 10 caracteres).
 
    El `.env` está en `.gitignore` y **nunca** se comitea.
+
+   **Variables opcionales (correo):**
+   - `AZURE_TENANT_ID` — tenant de Microsoft Entra ID
+   - `AZURE_CLIENT_ID` — client ID de la aplicación registrada
+   - `AZURE_CLIENT_SECRET` — secreto de la aplicación
+   - `MAIL_FROM` — buzón remitente (ej: `notificaciones@bblabs.io`)
+
+   Si están vacías, los envíos quedan en `pendiente` y se envían al configurarlas.
 
 3. **Instalar, migrar y sembrar:**
 
@@ -74,6 +88,17 @@ Las dos cosas corren solas en cada pull request desde
 `.github/workflows/ci.yml`. Ese workflow **no toca ninguna base y no corre
 migraciones**: acá las migraciones son siempre un paso manual y revisado.
 
+## Scripts disponibles
+
+| Comando | Qué hace |
+|---|---|
+| `npm run start:dev` | Levanta la API en watch mode |
+| `npm run build` | Build de producción |
+| `npm test` | Ejecuta los tests con Jest |
+| `npm run migrate:dev` | Crea/aplica migraciones de Prisma |
+| `npm run seed` | Siembra datos iniciales (admin, grupos, permisos) |
+| `npm run prisma:generate` | Regenera el cliente Prisma |
+
 ## Cómo está organizado
 
 ```
@@ -92,6 +117,109 @@ src/
     ├── notifications/   bandeja propia, leídas
     └── health/
 ```
+
+## API Endpoints
+
+### Autenticación
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/auth/login` | Iniciar sesión |
+| POST | `/api/auth/refresh` | Renovar access token |
+| POST | `/api/auth/logout` | Cerrar sesión |
+| GET | `/api/auth/me` | Usuario actual |
+| POST | `/api/auth/forgot-password` | Solicitar recuperación |
+
+### Usuarios
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/users` | Listar (paginado) |
+| POST | `/api/users` | Crear usuario |
+| GET | `/api/users/:id` | Detalle |
+| PATCH | `/api/users/:id` | Actualizar |
+| POST | `/api/users/:id/reset-password` | Asignar clave temporal |
+
+### Proyectos
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/projects` | Listar (paginado) |
+| POST | `/api/projects` | Crear proyecto |
+| GET | `/api/projects/stats` | Conteo por estado |
+| PATCH | `/api/projects/:id` | Actualizar |
+| PATCH | `/api/projects/:id/archive` | Archivar |
+
+### Asignaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/assignments` | Listar |
+| POST | `/api/assignments` | Crear asignación |
+| PATCH | `/api/assignments/:id/advance` | Avanzar estado |
+
+### Notificaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/notifications` | Bandeja propia |
+| PATCH | `/api/notifications/:id/read` | Marcar leída |
+
+### Otros
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/health` | Health check |
+| GET | `/api/docs` | Swagger UI |
+
+## Despliegue en Railway
+
+Railway te da **$5 gratis/mes** — alcanza para el backend + PostgreSQL **sin dormirse nunca**.
+
+### Paso 1: Crear cuenta
+1. Ir a [railway.app](https://railway.app)
+2. Click **Login** → conectar con GitHub
+
+### Paso 2: Crear proyecto
+1. Click **New Project** → **Empty Project**
+2. Click **+ New** → **Database** → **PostgreSQL**
+3. Anotar la variable `DATABASE_URL` que Railway genera automáticamente
+
+### Paso 3: Conectar el repo
+1. Click **+ New** → **GitHub Repo**
+2. Seleccionar `LuisOrozcoBBLABS/BackQ-D`
+3. Railway detecta NestJS automáticamente
+
+### Paso 4: Variables de entorno
+Ir a la pestaña **Variables** y agregar:
+
+| Variable | Valor |
+|---|---|
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | La que generó Railway (paso 2) |
+| `JWT_ACCESS_SECRET` | `openssl rand -base64 48` en terminal |
+| `JWT_REFRESH_SECRET` | Otro valor distinto al anterior |
+| `SEED_ADMIN_PASSWORD` | Contraseña del admin (mín 10 chars) |
+
+### Paso 5: Deploy
+1. Click **Deploy** → Railway instala, migra y arranca
+2. Ir a **Settings** → **Networking** → **Generate Domain**
+3. URL pública: `https://backq-d-production.up.railway.app`
+
+### Paso 6: Sembrar datos iniciales
+1. Ir a la pestaña **Deployments**
+2. Click en el deploy activo → **Shell**
+3. Ejecutar: `npm run seed`
+
+### Resultado
+- API: `https://TU-URL.up.railway.app/api`
+- Swagger: `https://TU-URL.up.railway.app/api/docs`
+- **Nunca se duerme** ✓
+- **PostgreSQL incluido** ✓
+- **$0/mes** dentro del crédito gratis
+
+### Variables opcionales (correo)
+Si usás Microsoft Graph, agregar:
+- `AZURE_TENANT_ID`
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `MAIL_FROM`
+- `FRONTEND_URL` (URL del front cuando lo despliegues)
+- `APP_URL` (igual que FRONTEND_URL)
 
 ## Decisiones que conviene conocer
 
@@ -248,7 +376,7 @@ navegador oculta la cabecera y el front no puede paginar.
 | `feat/pipeline-y-permisos` | **Tres correcciones de seguridad.** `POST /assignments` comprobaba que el proyecto existiera, no que quien asigna pudiera verlo: como el alcance de lectura incluye «me lo asignaron», cualquier cuenta con `assignments.create` podía asignarse cualquier proyecto de la organización y ganar lectura más capacidad de mover su etapa — el permiso funcionaba como un `projects.viewAll` de facto. Faltaba `trust proxy`, y sin él el límite de login de 5/min era global: cinco peticiones por minuto dejaban sin login a toda el área. Y el `orderBy` no tenía desempate, así que la paginación devolvía filas repetidas y salteadas (con `sort=estado`, que tiene 10 valores, era casi aleatorio). |
 | `feat/pipeline-y-permisos` | **CI en cada pull request** (`ci.yml`): cliente de Prisma, tipos y los 20 tests. Sin base de datos y sin correr migraciones — acá siguen siendo un paso manual y revisado. |
 | `feat/pipeline-y-permisos` | Orden en el servidor con lista blanca en proyectos y usuarios (`sort` + `dir`). El tipo `CampoOrdenableUsuario` excluye `passwordHash` y `refreshTokenHash`, así que meter uno de esos en la lista falla al compilar: ordenar por una columna que nunca se devuelve es un oráculo. `ultimoLoginAt` y `cargo` ordenan con `nulls: 'last'`, porque en PostgreSQL los NULL van primero en DESC y «último ingreso más reciente arriba» devolvía primero a quien nunca entró. |
-| `feat/pipeline-y-permisos` | La tabla de transiciones de asignaciones queda avisada de que está espejada en el front, con el caso que ya se desincronizó: el front tenía `completada: ['en-curso']` mientras acá es `[]`, así que la interfaz ofrecía reabrir y el servidor lo rechazaba. |
+| `feat/pipeline-y-permisos` | La tabla de transiciones de asignaciones queda avisada de que está espejada en el front, con el episodio que ya ocurrió y su moraleja: alguien alineó el front a `completada: []` mirando una copia local de este repositorio que estaba atrasada, sin el commit que habilitó reabrir. El front estaba bien y el arreglo le quitó la función. La verificación va contra `origin/main`, no contra el working copy que se tenga a mano. |
 | `main` | Editar y eliminar quedan restringidos al autor (o administrador), separados del permiso de mover etapa, y documentada la matriz de permisos por operación. |
 | `main` | Tablero de punta a punta: `ProjectStatus` pasa de 4 a 10 etapas (embudo + ciclo de desarrollo), nueva tabla `project_status_changes` con el historial por etapa, y filtros de proyectos por asignación, prioridad, estado de la asignación, vencidos y rango de fechas. |
 | `main` | Nomenclatura del área: **I+D** pasa a **R&D** en el título de Swagger, la plantilla de correo, la descripción del paquete y los comentarios del esquema. |

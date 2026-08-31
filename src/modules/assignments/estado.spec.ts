@@ -13,10 +13,17 @@ describe('transiciones de estado de una asignación', () => {
     expect(transicionValida(AssignmentStatus.pendiente, AssignmentStatus.en_curso)).toBe(false);
   });
 
-  it('permite volver atrás un paso, pero no reabrir lo completado', () => {
+  it('permite volver atrás un paso desde cualquier estado', () => {
     expect(transicionValida(AssignmentStatus.en_curso, AssignmentStatus.aceptada)).toBe(true);
     expect(transicionValida(AssignmentStatus.aceptada, AssignmentStatus.pendiente)).toBe(true);
-    expect(transicionValida(AssignmentStatus.completada, AssignmentStatus.en_curso)).toBe(false);
+    // Reabrir lo completado: cerrar por error es comun y crear otra asignacion
+    // para corregirlo rompia la trazabilidad.
+    expect(transicionValida(AssignmentStatus.completada, AssignmentStatus.en_curso)).toBe(true);
+  });
+
+  it('reabrir no permite saltar mas atras que en curso', () => {
+    expect(transicionValida(AssignmentStatus.completada, AssignmentStatus.aceptada)).toBe(false);
+    expect(transicionValida(AssignmentStatus.completada, AssignmentStatus.pendiente)).toBe(false);
   });
 
   it('acepta reenviar el mismo estado sin tratarlo como error', () => {
@@ -29,8 +36,8 @@ describe('transiciones de estado de una asignación', () => {
     expect(motivoTransicionInvalida(AssignmentStatus.pendiente, AssignmentStatus.completada)).toContain(
       'solo se puede ir a aceptada',
     );
-    expect(motivoTransicionInvalida(AssignmentStatus.completada, AssignmentStatus.en_curso)).toContain(
-      'no admite más cambios',
+    expect(motivoTransicionInvalida(AssignmentStatus.completada, AssignmentStatus.pendiente)).toContain(
+      'solo se puede ir a en curso',
     );
   });
 });
