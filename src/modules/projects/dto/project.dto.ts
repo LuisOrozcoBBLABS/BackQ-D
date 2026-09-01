@@ -42,10 +42,21 @@ export class CreateProjectDto {
   @MaxLength(80)
   sector!: string;
 
-  @ApiPropertyOptional({
-    example: 'Bancolombia',
-    description: 'A quien se le presta el servicio. Vacio = interno.',
-  })
+  /**
+   * Cliente para el que se hace el proyecto.
+   *
+   * Opcional, no obligatorio: hay ideas internas que no tienen cliente, y
+   * exigirlo dejaria sin poder editar todo lo que ya esta cargado sin este dato.
+   * El tope de 140 es el mismo que el del nombre — es un nombre de empresa, no
+   * un texto libre.
+   *
+   * OJO con la diferencia respecto de `tipoPrestacion`, que esta justo abajo:
+   * el cliente vacio se guarda como NULL (una cadena en blanco y "sin cliente"
+   * son el mismo hecho), mientras que `tipoPrestacion` distingue null de
+   * ausente. No es una inconsistencia: en el cliente los dos valores vacios
+   * significan lo mismo, en el tipo de prestacion el null es una eleccion.
+   */
+  @ApiPropertyOptional({ example: 'Retycol', description: 'Cliente para el que se hace el proyecto.' })
   @IsOptional()
   @IsString()
   @MaxLength(140)

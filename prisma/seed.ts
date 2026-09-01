@@ -19,6 +19,24 @@ const PERMISOS = [
 const PERMISOS_POR_ROL: Record<RoleId, string[]> = {
   admin: PERMISOS.map(p => p.id),
   colaborador: ['projects.create', 'ai.use'],
+  /**
+   * Comercial: consulta, y nada mas.
+   *
+   * Un solo permiso, y es a proposito que no haya ningun bloqueo nuevo en
+   * ningun lado. Las cinco rutas que escriben proyectos ya exigen o bien un
+   * permiso que este rol no tiene (projects.create en POST, ai.use en
+   * PATCH /:id/ai) o bien ser el autor o admin (update, archive, restore) o
+   * tener el proyecto asignado (estado). Un comercial no es ninguna de esas
+   * cosas, asi que la escritura le queda cerrada por construccion.
+   *
+   * Es mejor que agregar guardas: una guarda nueva se puede olvidar en el
+   * endpoint siguiente. No tener el permiso no se olvida.
+   *
+   * NO lleva reports.view: eso da acceso a tableros e informes del area, que es
+   * mas de lo que se pidio. Si mañana hace falta, se agrega aca y en ningun
+   * otro lado.
+   */
+  comercial: ['projects.viewAll'],
 };
 
 const GRUPOS = [
@@ -47,6 +65,7 @@ async function main(): Promise<void> {
   const roles: { id: RoleId; label: string }[] = [
     { id: RoleId.admin, label: 'Administrador (Jefe de Innovación)' },
     { id: RoleId.colaborador, label: 'Colaborador' },
+    { id: RoleId.comercial, label: 'Comercial (solo lectura)' },
   ];
   for (const rol of roles) {
     await prisma.role.upsert({ where: { id: rol.id }, update: { label: rol.label }, create: rol });

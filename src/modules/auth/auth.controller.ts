@@ -20,7 +20,9 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // freno a fuerza bruta
+  // Sin @Throttle: la política vive en common/throttling.ts. El límite de
+  // fuerza bruta lo aplica el throttler 'cuenta', que cuenta por correo y no
+  // por IP — antes eran cinco intentos por minuto para TODA la oficina.
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Inicia sesión y devuelve el par de tokens.' })
@@ -29,7 +31,10 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 3, ttl: 60_000 } }) // no dejar barrer correos
+  // Más estricto que el login: pedir un restablecimiento es algo que se hace
+  // una vez, no cinco. Sobrescribe solo el límite por cuenta; el techo por
+  // dirección lo sigue poniendo 'ip-publica'.
+  @Throttle({ cuenta: { limit: 3, ttl: 60_000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

@@ -146,12 +146,12 @@ export class ProjectsService {
           ? {
               OR: [
                 { nombre: { contains: q.q, mode: 'insensitive' as const } },
+                // Buscar por cliente es lo primero que va a hacer el equipo
+                // comercial. La columna es de 140 caracteres, mucho mas barata
+                // de escanear que problema y solucion, que admiten 4000.
+                { cliente: { contains: q.q, mode: 'insensitive' as const } },
                 { problema: { contains: q.q, mode: 'insensitive' as const } },
                 { solucion: { contains: q.q, mode: 'insensitive' as const } },
-                // El cliente entra en la busqueda libre en vez de tener filtro
-                // propio: es texto libre, asi que un desplegable de clientes
-                // mostraria una lista sucia de variantes de la misma empresa.
-                { cliente: { contains: q.q, mode: 'insensitive' as const } },
               ],
             }
           : {},
@@ -247,7 +247,11 @@ export class ProjectsService {
         historial: { create: { estado: dto.estado ?? 'idea', porId: user.id } },
         nombre: dto.nombre.trim(),
         sector: dto.sector.trim(),
-        cliente: dto.cliente?.trim() ?? '',
+        // Se guarda null y no cadena vacia cuando no viene: la columna es
+        // nullable, y "sin cliente" y "cliente en blanco" son lo mismo. Con dos
+        // representaciones para el mismo hecho, cualquier filtro futuro tendria
+        // que preguntar por las dos.
+        cliente: dto.cliente?.trim() || null,
         tipoPrestacion: dto.tipoPrestacion ?? null,
         problema: dto.problema ?? '',
         dolores: dto.dolores ?? '',
@@ -292,7 +296,7 @@ export class ProjectsService {
         data: {
           ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
           ...(dto.sector !== undefined ? { sector: dto.sector.trim() } : {}),
-          ...(dto.cliente !== undefined ? { cliente: dto.cliente.trim() } : {}),
+          ...(dto.cliente !== undefined ? { cliente: dto.cliente.trim() || null } : {}),
           // `null` es un valor y no una ausencia: asi se puede devolver un
           // proyecto a "sin clasificar" desde la interfaz.
           ...(dto.tipoPrestacion !== undefined ? { tipoPrestacion: dto.tipoPrestacion } : {}),

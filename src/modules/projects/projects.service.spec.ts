@@ -125,18 +125,31 @@ describe('ProjectsService · cliente', () => {
 
     const trozo = trozoCon(capturado.findMany[0].where, 'OR');
     const campos = ((trozo?.OR ?? []) as Prisma.ProjectWhereInput[]).flatMap(o => Object.keys(o));
-    expect(campos).toEqual(['nombre', 'problema', 'solucion', 'cliente']);
+    expect(campos).toEqual(['nombre', 'cliente', 'problema', 'solucion']);
   });
 
-  it('al crear sin cliente ni tipo guarda cadena vacía y null, no undefined', async () => {
+  it('al crear sin cliente ni tipo guarda null en los dos, no undefined', async () => {
     const { prisma, capturado } = prismaFalso();
     const service = new ProjectsService(prisma);
 
     await service.create({ nombre: 'FreightAudit', sector: 'Logística' }, USER);
 
     const data = capturado.create[0].data as Prisma.ProjectUncheckedCreateInput;
-    expect(data.cliente).toBe('');
+    // El cliente vacío se guarda NULL y no '': "sin cliente" y "cliente en
+    // blanco" son el mismo hecho, y dos representaciones para lo mismo obligan
+    // a cualquier filtro futuro a preguntar por las dos.
+    expect(data.cliente).toBeNull();
     expect(data.tipoPrestacion).toBeNull();
+  });
+
+  it('un cliente en blanco tambien se guarda como null', async () => {
+    const { prisma, capturado } = prismaFalso();
+    const service = new ProjectsService(prisma);
+
+    await service.create({ nombre: 'FreightAudit', sector: 'Logística', cliente: '   ' }, USER);
+
+    const data = capturado.create[0].data as Prisma.ProjectUncheckedCreateInput;
+    expect(data.cliente).toBeNull();
   });
 
   it('al crear con los dos campos los guarda recortados', async () => {

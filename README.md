@@ -105,7 +105,7 @@ migraciones**: acá las migraciones son siempre un paso manual y revisado.
 src/
 ├── main.ts              arranque
 ├── app.setup.ts         prefijo /api, helmet, CORS, validación, filtro de Prisma
-├── app.module.ts        guards globales: throttler → jwt → permisos
+├── app.module.ts        guards globales: jwt → throttler → permisos (el orden importa, ver abajo)
 ├── common/              decoradores (@Public, @RequirePermission, @CurrentUser) y guards
 ├── infra/prisma/        PrismaService
 └── modules/
@@ -244,11 +244,66 @@ tablero, y `PATCH /projects/:id/restore` lo devuelve con su historial intacto.
 | Operación | Quién |
 |---|---|
 | Ver | Autor, su grupo, **quien lo tiene asignado**, o `projects.viewAll` |
+| Crear (`POST /projects`) | `projects.create` |
 | Mover etapa (`PATCH /projects/:id/estado`) | Autor, administrador o **quien lo tiene a cargo** |
 | Editar y eliminar (`PATCH /projects/:id`, `/archive`) | Autor o administrador |
+| Guardar enriquecimiento (`PATCH /projects/:id/ai`) | `ai.use` |
 
 Mover una tarjeta del tablero y editar el contenido del proyecto no son lo mismo:
 quien ejecuta el trabajo avanza su etapa, pero no reescribe la propuesta de otro.
+
+### Los tres roles
+
+| Rol | Permisos base | Para qué |
+|---|---|---|
+| `admin` | los ocho | Jefatura de innovación |
+| `colaborador` | `projects.create`, `ai.use` | Quien registra ideas y ejecuta |
+| `comercial` | `projects.viewAll` | **Solo lectura.** Consulta el portafolio y su cliente |
+
+**`comercial` no tiene ni una guarda propia, y es a propósito.** Mirá la tabla de
+arriba: las cinco operaciones de escritura ya exigen o bien un permiso que ese rol no
+tiene (`projects.create`, `ai.use`) o bien ser el autor o administrador. Un comercial
+no es ninguna de esas cosas, así que la escritura le queda cerrada **por
+construcción**.
+
+No darle el permiso es mejor que agregarle una guarda: una guarda nueva se puede
+olvidar en el endpoint siguiente, y no tener el permiso no se olvida. El precio es que
+la propiedad *emerge* en vez de estar escrita, y una propiedad que emerge se pierde
+sin que nadie lo note — por eso existe `comercial-solo-lectura.spec.ts`, que la fija y
+que se validó rompiéndola: con `soloAutorOAdmin` devolviendo siempre `true`, cuatro de
+sus diez casos fallan.
+
+### Límites de peticiones
+
+Tres límites con nombre (`common/throttling.ts`), porque son tres preguntas distintas:
+
+| Nombre | Pregunta | Cuenta por | Tope |
+|---|---|---|---|
+| `persona` | ¿alguien está golpeando la API? | usuario (IP si no hay sesión) | 300/min |
+| `cuenta` | ¿le están probando contraseñas a alguien? | correo | 5/min |
+| `ip-publica` | ¿una dirección barre muchas cuentas? | IP | 30/min |
+
+Antes había uno solo, 120/min **por IP**, y el login 5/min por IP. Una oficina detrás
+de NAT es UNA dirección: quinientas personas compartían 120 peticiones por minuto y
+cinco intentos de login. Como un render del tablero dispara once peticiones (una por
+etapa), once personas abriéndolo en el mismo minuto agotaban la cuota de la empresa.
+
+**Por eso el throttler ahora va DESPUÉS de la autenticación.** Estaba primero, y ahí
+`request.user` todavía no existe: lo único por lo que se podía contar era la IP. Mover
+el guard no expone la base, porque `JwtAuthGuard` verifica la firma del token
+(`jwt-auth.guard.ts:40`) antes de consultarla (`:47`) — un token forjado muere sin
+costar una consulta.
+
+`ip-publica` se salta con sesión **y también cuando la petición no trae correo**. Esa
+segunda condición no es cosmética: `POST /auth/refresh` es pública, así que nunca tiene
+sesión, y sin ella quedaba limitada a 30/min por IP. Con quinientas personas renovando
+token cada quince minutos son unas 33 renovaciones por minuto desde la IP de la
+oficina — 429, y la sesión se les cae a todos. El mismo problema, entrando por atrás.
+
+⚠️ **El almacenamiento es un `Map` en memoria del proceso.** Con una instancia
+funciona. Con dos réplicas cada una lleva su propia cuenta y el límite real se
+multiplica; además se reinicia con cada despliegue y con cada arranque en frío. Mover
+esto a Redis es una dependencia nueva y todavía no está hecho.
 
 **Los envíos no mienten.** Cada notificación guarda un registro por canal con estado
 real: `pendiente` (esperando al despachador), `enviado`, `fallido` o `no_configurado`
@@ -383,6 +438,8 @@ navegador oculta la cabecera y el front no puede paginar.
 
 | Rama | Qué cambió |
 |---|---|
+| `QA` | **Los límites de peticiones dejan de contar por IP.** Tres límites con nombre en lugar de uno: por persona, por cuenta y por dirección. El `ThrottlerGuard` pasa a ir después de `JwtAuthGuard`, que es lo que hace posible contar por usuario — antes iba primero y ahí `request.user` no existe. Verificado contra el servidor, no solo en tests: seis intentos contra una cuenta cortan en el sexto, otra cuenta desde la misma IP entra igual (ése era el bug), cuarenta cuentas distintas desde una IP se cortan a las dieciséis, y cuarenta y cinco `refresh` con token inválido dan 401 las cuarenta y cinco sin un solo 429. Sigue pendiente el almacenamiento compartido: hoy es un `Map` en memoria y con más de una réplica el límite se multiplica. |
+| `QA` | **Campo `cliente` en proyectos y rol `comercial` de solo lectura.** La columna es nullable a propósito: hay ideas internas sin cliente, y una obligatoria dejaría sin poder editar todo lo ya cargado. Se guarda `null` y no cadena vacía, para que «sin cliente» tenga una sola representación. Entra también en la búsqueda por texto, que es lo primero que va a usar comercial. El rol lleva un único permiso y ninguna guarda nueva — ver «Los tres roles». **La migración `20260901120000` quedó escrita y sin ejecutar:** agrega el valor al enum y la columna, y nada más, porque la fila de la tabla `roles` la crea el seed en otro proceso (PostgreSQL admite `ADD VALUE` en transacción solo si el valor nuevo no se usa en la misma). |
 | `feat/pipeline-y-permisos` | **Tres correcciones de seguridad.** `POST /assignments` comprobaba que el proyecto existiera, no que quien asigna pudiera verlo: como el alcance de lectura incluye «me lo asignaron», cualquier cuenta con `assignments.create` podía asignarse cualquier proyecto de la organización y ganar lectura más capacidad de mover su etapa — el permiso funcionaba como un `projects.viewAll` de facto. Faltaba `trust proxy`, y sin él el límite de login de 5/min era global: cinco peticiones por minuto dejaban sin login a toda el área. Y el `orderBy` no tenía desempate, así que la paginación devolvía filas repetidas y salteadas (con `sort=estado`, que tiene 10 valores, era casi aleatorio). |
 | `feat/pipeline-y-permisos` | **CI en cada pull request** (`ci.yml`): cliente de Prisma, tipos y los 20 tests. Sin base de datos y sin correr migraciones — acá siguen siendo un paso manual y revisado. |
 | `feat/pipeline-y-permisos` | Orden en el servidor con lista blanca en proyectos y usuarios (`sort` + `dir`). El tipo `CampoOrdenableUsuario` excluye `passwordHash` y `refreshTokenHash`, así que meter uno de esos en la lista falla al compilar: ordenar por una columna que nunca se devuelve es un oráculo. `ultimoLoginAt` y `cargo` ordenan con `nulls: 'last'`, porque en PostgreSQL los NULL van primero en DESC y «último ingreso más reciente arriba» devolvía primero a quien nunca entró. |
