@@ -34,6 +34,16 @@ export const ORDEN_PROYECTOS = [
 ] as const satisfies readonly (keyof Prisma.ProjectOrderByWithRelationInput)[];
 export type OrdenProyectos = (typeof ORDEN_PROYECTOS)[number];
 
+/**
+ * Valores del filtro de prestacion. `sin_clasificar` NO es un valor del enum de
+ * Prisma: es la forma de pedir `tipoPrestacion IS NULL`, que en la interfaz se
+ * llama "Sin clasificar". Va por la lista blanca junto a los dos reales para
+ * que el servicio traduzca los tres en un solo lugar; mandarlo crudo a Prisma
+ * seria un PrismaClientValidationError que el filtro no traduce (sale 500).
+ */
+export const FILTRO_PRESTACION = ['talento', 'solucion', 'sin_clasificar'] as const;
+export type FiltroPrestacion = (typeof FILTRO_PRESTACION)[number];
+
 export class QueryProjectsDto {
   @ApiPropertyOptional({ description: 'Busca en nombre, problema y solución.' })
   @IsOptional()
@@ -55,6 +65,14 @@ export class QueryProjectsDto {
   @IsOptional()
   @IsUUID()
   groupId?: string;
+
+  @ApiPropertyOptional({
+    enum: FILTRO_PRESTACION,
+    description: 'Que se presta. `sin_clasificar` son los que todavia no tienen tipo.',
+  })
+  @IsOptional()
+  @IsIn(FILTRO_PRESTACION)
+  tipoPrestacion?: FiltroPrestacion;
 
   // ---------------- Filtros del tablero ----------------
 

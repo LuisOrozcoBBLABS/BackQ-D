@@ -117,6 +117,19 @@ export class ProjectsService {
     return { createdAt: rango };
   }
 
+  /**
+   * Que se presta. `sin_clasificar` no existe en el enum de Prisma: es la forma
+   * de pedir los que todavia no tienen tipo, y se traduce a `null` ACA, que es
+   * el unico lugar donde se traduce. Sin filtro no se agrega la clave: filtrar
+   * por `undefined` y por `null` no es lo mismo, y lo segundo dejaria fuera a
+   * todos los proyectos clasificados.
+   */
+  private filtroPrestacion(q: QueryProjectsDto): Prisma.ProjectWhereInput {
+    if (!q.tipoPrestacion) return {};
+    if (q.tipoPrestacion === 'sin_clasificar') return { tipoPrestacion: null };
+    return { tipoPrestacion: q.tipoPrestacion };
+  }
+
   /** Filtros comunes a la lista y al conteo, para que nunca se desalineen. */
   private filtros(q: QueryProjectsDto, user: RequestUser): Prisma.ProjectWhereInput {
     return {
@@ -126,6 +139,7 @@ export class ProjectsService {
         q.sector ? { sector: q.sector } : {},
         q.estado ? { estado: q.estado } : {},
         q.groupId ? { groupId: q.groupId } : {},
+        this.filtroPrestacion(q),
         this.filtroAsignaciones(q, user),
         this.filtroFechas(q),
         q.q
@@ -238,6 +252,7 @@ export class ProjectsService {
         // representaciones para el mismo hecho, cualquier filtro futuro tendria
         // que preguntar por las dos.
         cliente: dto.cliente?.trim() || null,
+        tipoPrestacion: dto.tipoPrestacion ?? null,
         problema: dto.problema ?? '',
         dolores: dto.dolores ?? '',
         solucion: dto.solucion ?? '',
@@ -282,6 +297,9 @@ export class ProjectsService {
           ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
           ...(dto.sector !== undefined ? { sector: dto.sector.trim() } : {}),
           ...(dto.cliente !== undefined ? { cliente: dto.cliente.trim() || null } : {}),
+          // `null` es un valor y no una ausencia: asi se puede devolver un
+          // proyecto a "sin clasificar" desde la interfaz.
+          ...(dto.tipoPrestacion !== undefined ? { tipoPrestacion: dto.tipoPrestacion } : {}),
           ...(dto.problema !== undefined ? { problema: dto.problema } : {}),
           ...(dto.dolores !== undefined ? { dolores: dto.dolores } : {}),
           ...(dto.solucion !== undefined ? { solucion: dto.solucion } : {}),
