@@ -42,6 +42,20 @@ export class CreateProjectDto {
   @MaxLength(80)
   sector!: string;
 
+  /**
+   * Cliente para el que se hace el proyecto.
+   *
+   * Opcional, no obligatorio: hay ideas internas que no tienen cliente, y
+   * exigirlo dejaria sin poder editar todo lo que ya esta cargado sin este dato.
+   * El tope de 140 es el mismo que el del nombre — es un nombre de empresa, no
+   * un texto libre.
+   */
+  @ApiPropertyOptional({ example: 'Retycol', description: 'Cliente para el que se hace el proyecto.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(140)
+  cliente?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
