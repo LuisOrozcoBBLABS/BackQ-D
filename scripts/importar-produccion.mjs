@@ -21,9 +21,14 @@
  *   en 7 dias" del panel y los tiempos por etapa arrancan de cero.
  * - Historial de etapas. Solo queda la fila inicial que crea el propio alta.
  *
- * Lo que SI se conserva: nombre, sector, problema, dolores, solucion, plusIA,
- * etapa del pipeline, grupo, apps parecidas, y de las personas su nombre,
- * correo, cargo, rol y grupo.
+ * Lo que SI se conserva: nombre, sector, cliente, tipo de prestacion, problema,
+ * dolores, solucion, plusIA, etapa del pipeline, grupo, apps parecidas, y de
+ * las personas su nombre, correo, cargo, rol y grupo.
+ *
+ * OJO al agregar una columna al proyecto: hay que sumarla ACA tambien. El
+ * cuerpo se arma campo por campo —no es un spread del objeto de origen— asi que
+ * una columna nueva no viaja y no falla nada: el proyecto se crea igual, con
+ * ese dato en blanco, y el silencio es justo el problema.
  *
  * Es reentrante: lo que ya existe se saltea, asi que se puede volver a correr
  * si se corta a la mitad.
@@ -130,6 +135,10 @@ for (const p of proyectosOrigen) {
     await api('POST', '/projects', {
       nombre: p.nombre,
       sector: p.sector,
+      // El DTO omite lo que llegue en undefined; mandar null seria un 400 en
+      // `cliente`, que es @IsString cuando esta presente.
+      cliente: p.cliente ?? undefined,
+      tipoPrestacion: p.tipoPrestacion ?? undefined,
       problema: p.problema ?? undefined,
       dolores: p.dolores ?? undefined,
       solucion: p.solucion ?? undefined,

@@ -44,6 +44,15 @@ enum ProjectStatus {
   descartado
 }
 
+/// Que le presta la empresa al cliente en este proyecto: gente (talento) o el
+/// producto terminado (solucion). Es opcional a proposito: lo que se registro
+/// antes de que existiera esta distincion no tiene una respuesta correcta, y
+/// ponerle una por defecto seria inventarla.
+enum TipoPrestacion {
+  talento
+  solucion
+}
+
 enum Prioridad {
   urgente
   alta
@@ -205,6 +214,9 @@ model Project {
   solucion String @default("")
   plusIA   String @default("")
 
+  /// Null = sin clasificar. Ver el comentario del enum.
+  tipoPrestacion TipoPrestacion?
+
   groupId String?
   group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
@@ -232,6 +244,7 @@ model Project {
   @@index([groupId])
   @@index([autorId])
   @@index([estado])
+  @@index([tipoPrestacion])
   @@map("projects")
 }
 
