@@ -15,3 +15,8 @@ prisma/*.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Volcado de datos de produccion (scripts/exportar-produccion.mjs).
+# NUNCA se comitea: trae correos de personas, nombres de proyectos y, desde la
+# migracion del campo cliente, nombres de clientes de la empresa.
+export-produccion/
