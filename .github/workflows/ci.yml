@@ -33,11 +33,11 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      # Imprescindible y no obvio: el paquete no tiene postinstall, y tanto el
-      # chequeo de tipos como los specs importan enums de @prisma/client
-      # (RoleId, EstadoSolicitud, AssignmentStatus). Sin el cliente generado
-      # esos imports no existen. `generate` lee el schema, no la base: no
-      # necesita conexión.
+      # Redundante desde que existe el postinstall, y se queda a proposito: si
+      # alguien instala con --ignore-scripts, este paso sigue garantizando el
+      # cliente. Sin el, los specs y el chequeo de tipos no encuentran los enums
+      # de @prisma/client (RoleId, EstadoSolicitud, AssignmentStatus).
+      # `generate` lee el schema, no la base: no necesita conexion.
       - name: Generar el cliente de Prisma
         run: npx prisma generate
 
