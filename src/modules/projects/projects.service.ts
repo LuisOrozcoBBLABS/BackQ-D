@@ -7,6 +7,7 @@ import { ORDEN_PROYECTOS, OrdenProyectos, QueryProjectsDto } from './dto/query-p
 
 const PROJECT_INCLUDE = {
   similares: { orderBy: { orden: 'asc' } },
+  evidencias: { orderBy: { orden: 'asc' } },
   autor: { select: { id: true, nombre: true, email: true, avatarUrl: true } },
   group: { select: { id: true, nombre: true } },
   _count: { select: { assignments: true } },
@@ -264,6 +265,16 @@ export class ProjectsService {
         similares: dto.similares?.length
           ? { create: dto.similares.map((s, orden) => ({ name: s.name, url: s.url, orden })) }
           : undefined,
+        evidencias: dto.evidencias?.length
+          ? {
+              create: dto.evidencias.map((e, orden) => ({
+                tipo: e.tipo,
+                titulo: e.titulo.trim(),
+                url: e.url,
+                orden,
+              })),
+            }
+          : undefined,
       },
       include: PROJECT_INCLUDE,
     });
@@ -286,6 +297,25 @@ export class ProjectsService {
         if (dto.similares.length) {
           await tx.projectSimilar.createMany({
             data: dto.similares.map((s, orden) => ({ projectId: id, name: s.name, url: s.url, orden })),
+          });
+        }
+      }
+
+      // Reemplazo total, como los similares. La guarda es sobre el campo y no
+      // sobre su longitud a proposito: un array vacio borra las evidencias, y
+      // un campo ausente no las toca. Sin esa distincion no habria forma de
+      // quitarle la ultima evidencia a un proyecto.
+      if (dto.evidencias) {
+        await tx.projectEvidence.deleteMany({ where: { projectId: id } });
+        if (dto.evidencias.length) {
+          await tx.projectEvidence.createMany({
+            data: dto.evidencias.map((e, orden) => ({
+              projectId: id,
+              tipo: e.tipo,
+              titulo: e.titulo.trim(),
+              url: e.url,
+              orden,
+            })),
           });
         }
       }
