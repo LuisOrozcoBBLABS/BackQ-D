@@ -53,6 +53,16 @@ enum TipoPrestacion {
   solucion
 }
 
+/// Que clase de evidencia es. Decide el icono y el agrupamiento en la ficha, no
+/// el destino: todas son enlaces externos. `despliegue` es la aplicacion viva;
+/// `documento` cubre lo que vive en SharePoint (actas, presentaciones).
+enum TipoEvidencia {
+  imagen
+  video
+  despliegue
+  documento
+}
+
 enum Prioridad {
   urgente
   alta
@@ -235,6 +245,7 @@ model Project {
   archivadoAt DateTime?
 
   similares   ProjectSimilar[]
+  evidencias  ProjectEvidence[]
   assignments Assignment[]
   historial   ProjectStatusChange[]
 
@@ -259,6 +270,24 @@ model ProjectSimilar {
 
   @@index([projectId])
   @@map("project_similars")
+}
+
+/// Lo que demuestra que el proyecto existe: capturas, demos y la URL del
+/// despliegue. Son siempre enlaces externos — el servidor no guarda archivos —
+/// asi que `url` es el dato y no hay nada que limpiar al borrar la fila.
+/// `orden` preserva el orden en que se cargaron, como en ProjectSimilar.
+model ProjectEvidence {
+  id        String        @id @default(uuid())
+  projectId String
+  tipo      TipoEvidencia
+  titulo    String
+  url       String
+  orden     Int           @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_evidences")
 }
 
 /// Una fila por cada entrada a una etapa. De aca salen los tiempos por etapa y
