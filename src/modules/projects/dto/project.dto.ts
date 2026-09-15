@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProjectStatus, TipoPrestacion } from '@prisma/client';
+import { ProjectStatus, TipoEvidencia, TipoPrestacion } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -26,6 +27,33 @@ export class SimilarDto {
 
   @ApiProperty({ example: 'https://reveelgroup.com' })
   @IsUrl({}, { message: 'La URL de la app parecida no es válida.' })
+  @MaxLength(400)
+  url!: string;
+}
+
+/**
+ * Una evidencia del proyecto: una captura, una demo o el despliegue. Siempre es
+ * un enlace externo — aca no se sube ningun archivo.
+ *
+ * La allowlist de protocolo es explicita y no el `@IsUrl()` pelado: el default
+ * de class-validator tambien acepta `ftp://`, y esta URL termina pintada en un
+ * `href` de la ficha. Mismo criterio que `sanearUrl()` del modulo de IA.
+ */
+export class EvidenciaDto {
+  @ApiProperty({ enum: TipoEvidencia, example: TipoEvidencia.despliegue })
+  @IsEnum(TipoEvidencia)
+  tipo!: TipoEvidencia;
+
+  @ApiProperty({ example: 'Demo del tablero' })
+  @IsString()
+  @MaxLength(120)
+  titulo!: string;
+
+  @ApiProperty({ example: 'https://ejemplo.com/demo' })
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'La URL de la evidencia no es válida.' },
+  )
   @MaxLength(400)
   url!: string;
 }
@@ -103,6 +131,15 @@ export class CreateProjectDto {
   @ValidateNested({ each: true })
   @Type(() => SimilarDto)
   similares?: SimilarDto[];
+
+  /** El tope existe aca y no solo en el front: el front es una sugerencia. */
+  @ApiPropertyOptional({ type: [EvidenciaDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12, { message: 'No se pueden cargar más de 12 evidencias.' })
+  @ValidateNested({ each: true })
+  @Type(() => EvidenciaDto)
+  evidencias?: EvidenciaDto[];
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
