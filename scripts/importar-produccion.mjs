@@ -148,6 +148,9 @@ for (const p of proyectosOrigen) {
       similares: p.similares?.length
         ? p.similares.map(s => ({ name: s.name, url: s.url }))
         : undefined,
+      evidencias: p.evidencias?.length
+        ? p.evidencias.map(e => ({ tipo: e.tipo, titulo: e.titulo, url: e.url }))
+        : undefined,
     });
     pAltas++;
   } catch (e) {

@@ -67,12 +67,19 @@ reales, las credenciales y los permisos.
 ## Testing
 
 ```bash
-npm test   # Jest, 20 tests
+npm test   # Jest, 198 tests
 ```
 
 Los specs usan un doble de Prisma (`prismaFalso`), así que **no hace falta una
 base de datos** para correrlos. Cubren la máquina de estados de asignaciones,
-`PasswordChangeGuard`, `PermissionsGuard` y el flujo de restablecimiento.
+`PasswordChangeGuard`, `PermissionsGuard`, el flujo de restablecimiento, el
+armado del `where` de proyectos, el saneamiento del módulo de IA y las
+evidencias.
+
+Dos de ellos validan contra un DTO **importado** y no contra una copia de sus
+reglas: `saneamiento.contrato.spec.ts` y `evidencias.spec.ts`. El día que
+alguien cambie un `@MaxLength` o una allowlist en `projects`, se rompen ahí y no
+en producción con un 400.
 
 El chequeo de tipos vale por sí solo, y no solo por prolijidad: la lista blanca
 del ordenamiento se apoya en el tipo `CampoOrdenableUsuario`, que excluye
@@ -145,7 +152,13 @@ src/
 | POST | `/api/projects` | Crear proyecto |
 | GET | `/api/projects/stats` | Conteo por estado |
 | PATCH | `/api/projects/:id` | Actualizar |
+| PATCH | `/api/projects/:id/estado` | Mover de etapa (permiso más amplio que editar) |
 | PATCH | `/api/projects/:id/archive` | Archivar |
+
+Las **evidencias** no tienen ruta propia: viajan dentro del `POST` y del `PATCH`
+de arriba. Así la autorización sigue siendo la misma —autor o administrador— sin
+un permiso nuevo en el catálogo. Al editar, la lista viaja completa: mandar `[]`
+las borra, y **omitir la clave no toca nada**.
 
 ### Asignaciones
 | Método | Ruta | Descripción |
@@ -438,6 +451,7 @@ navegador oculta la cabecera y el front no puede paginar.
 
 | Rama | Qué cambió |
 |---|---|
+| `feat/evidencias-de-proyecto` | **Evidencias del proyecto: capturas, demos y la URL del despliegue.** Son **enlaces externos**, no archivos: acá no se sube nada y no hizo falta ningún almacenamiento — el disco de Render y Railway es efímero y se lleva puesto cualquier archivo en cada despliegue. `ProjectEvidence` calca a `ProjectSimilar` (hijo con `onDelete: Cascade` y columna `orden`), porque ese patrón ya está probado. Dos cosas se hacen distinto a propósito: lleva `@ArrayMaxSize(12)`, que `similares` no tiene y por eso acepta quinientas filas; y la allowlist de protocolo es explícita, porque el `@IsUrl()` pelado de class-validator **también acepta `ftp://`** y la URL termina pintada en un `href`. En `update()` la guarda es `if (dto.evidencias)` y no `?.length`: un array vacío borra y un campo ausente no toca nada — sin esa distinción no se le podría quitar la última evidencia a un proyecto. El importador de datos suma el campo, que es la trampa ya documentada: arma el cuerpo campo por campo, así que una columna nueva no viaja y no falla nada. Ya pasó con `cliente` y `tipoPrestacion`. |
 | `QA` | **Los límites de peticiones dejan de contar por IP.** Tres límites con nombre en lugar de uno: por persona, por cuenta y por dirección. El `ThrottlerGuard` pasa a ir después de `JwtAuthGuard`, que es lo que hace posible contar por usuario — antes iba primero y ahí `request.user` no existe. Verificado contra el servidor, no solo en tests: seis intentos contra una cuenta cortan en el sexto, otra cuenta desde la misma IP entra igual (ése era el bug), cuarenta cuentas distintas desde una IP se cortan a las dieciséis, y cuarenta y cinco `refresh` con token inválido dan 401 las cuarenta y cinco sin un solo 429. Sigue pendiente el almacenamiento compartido: hoy es un `Map` en memoria y con más de una réplica el límite se multiplica. |
 | `QA` | **Campo `cliente` en proyectos y rol `comercial` de solo lectura.** La columna es nullable a propósito: hay ideas internas sin cliente, y una obligatoria dejaría sin poder editar todo lo ya cargado. Se guarda `null` y no cadena vacía, para que «sin cliente» tenga una sola representación. Entra también en la búsqueda por texto, que es lo primero que va a usar comercial. El rol lleva un único permiso y ninguna guarda nueva — ver «Los tres roles». **La migración `20260901120000` quedó escrita y sin ejecutar:** agrega el valor al enum y la columna, y nada más, porque la fila de la tabla `roles` la crea el seed en otro proceso (PostgreSQL admite `ADD VALUE` en transacción solo si el valor nuevo no se usa en la misma). |
 | `feat/pipeline-y-permisos` | **Tres correcciones de seguridad.** `POST /assignments` comprobaba que el proyecto existiera, no que quien asigna pudiera verlo: como el alcance de lectura incluye «me lo asignaron», cualquier cuenta con `assignments.create` podía asignarse cualquier proyecto de la organización y ganar lectura más capacidad de mover su etapa — el permiso funcionaba como un `projects.viewAll` de facto. Faltaba `trust proxy`, y sin él el límite de login de 5/min era global: cinco peticiones por minuto dejaban sin login a toda el área. Y el `orderBy` no tenía desempate, así que la paginación devolvía filas repetidas y salteadas (con `sort=estado`, que tiene 10 valores, era casi aleatorio). |
